@@ -16,7 +16,7 @@ dependencies {
     compile 'it.unibo.alchemist:alchemist:5.1.0'
 }
 
-task testSharedTimer(type: JavaExec){
+task myRun(type: JavaExec){
     classpath 'src/main/java'
     classpath 'src/main/yaml'
     classpath 'src/main/protelis'

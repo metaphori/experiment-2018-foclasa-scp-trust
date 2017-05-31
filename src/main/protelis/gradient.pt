@@ -1,0 +1,6 @@
+module gradient
+
+import protelis:coord:spreading
+
+let isSource = env.get("source") == 1;
+distanceTo(isSource);

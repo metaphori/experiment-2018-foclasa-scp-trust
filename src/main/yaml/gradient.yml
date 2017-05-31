@@ -1,0 +1,47 @@
+variables:
+  random: &random
+    min: 0
+    max: 19
+    step: 1
+    default: 0
+    
+seeds:
+  scenario: *random
+  simulation: *random
+
+network-model:
+  type: EuclideanDistance
+  parameters: [2]
+  
+incarnation: protelis
+
+pools:
+  - pool: &program
+    - time-distribution: 1
+      type: Event
+      actions:
+        - type: RunProtelisProgram
+          parameters: [gradient, 2]
+    - time-distribution: null
+      program: send
+      
+positions:
+  type: Continuous2DEuclidean
+  
+displacements:
+  - in:
+      type: Grid 
+      parameters: [0, 0, 30, 30, 1, 1, 0.2, 0.2]
+    programs: 
+      - *program
+    contents:
+      - molecule: source
+        concentration: 0 # false
+  - in:
+      type: Point
+      parameters: [15, 15]
+    programs: 
+      - *program
+    contents:
+      - molecule: source
+        concentration: 1 # true
