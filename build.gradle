@@ -1,8 +1,10 @@
 apply plugin: 'java'
+apply plugin: 'scala'
 apply plugin: 'eclipse'
 
 repositories {
-    mavenCentral()
+	mavenCentral()
+    flatDir { dirs 'libs' }
 }
 
 eclipse {
@@ -13,7 +15,8 @@ eclipse {
 }
 
 dependencies {
-    compile 'it.unibo.alchemist:alchemist:5.1.0'
+    //compile 'it.unibo.alchemist:alchemist:5.1.0'
+    compile name: 'alchemist-redist-5.1.0'
 }
 
 task myRun(type: JavaExec){
