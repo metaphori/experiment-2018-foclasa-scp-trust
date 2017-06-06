@@ -11,19 +11,28 @@ seeds:
 
 network-model:
   type: EuclideanDistance
-  parameters: [2]
+  parameters: [1.6]
   
-incarnation: protelis
+#incarnation: protelis
+incarnation: scafi
 
 pools:
   - pool: &program
     - time-distribution: 1
       type: Event
       actions:
-        - type: RunProtelisProgram
-          parameters: [gradient, 2]
-    - time-distribution: null
-      program: send
+        - type: RunScafiProgram #RunProtelisProgram
+          parameters: [gradient, 20]
+    #- time-distribution: null
+    #  program: send
+  - pool: &turnIntoFake
+    - time-distribution: 
+        type: Trigger
+        parameters: [22]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [fake, 1]  
       
 positions:
   type: Continuous2DEuclidean
@@ -37,6 +46,8 @@ displacements:
     contents:
       - molecule: source
         concentration: 0 # false
+      - molecule: fake
+        concentration: 0 # false
   - in:
       type: Point
       parameters: [15, 15]
@@ -45,3 +56,16 @@ displacements:
     contents:
       - molecule: source
         concentration: 1 # true
+      - molecule: fake
+        concentration: 0 # false
+  - in:
+      type: Point
+      parameters: [29, 29]
+    programs: 
+      - *program
+      - *turnIntoFake
+    contents:
+      - molecule: source
+        concentration: 0 # false
+      - molecule: fake
+        concentration: 0 # false
