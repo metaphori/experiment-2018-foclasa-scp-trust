@@ -4,6 +4,8 @@ variables:
     max: 19
     step: 1
     default: 0
+  commRadius: &commRadius
+    formula: 1.6
     
 seeds:
   scenario: *random
@@ -11,7 +13,7 @@ seeds:
 
 network-model:
   type: EuclideanDistance
-  parameters: [1.6]
+  parameters: [*commRadius]
   
 #incarnation: protelis
 incarnation: scafi
@@ -48,6 +50,8 @@ displacements:
         concentration: 0 # false
       - molecule: fake
         concentration: 0 # false
+      - molecule: commRadius
+        concentration: *commRadius
   - in:
       type: Point
       parameters: [15, 15]
@@ -58,6 +62,8 @@ displacements:
         concentration: 1 # true
       - molecule: fake
         concentration: 0 # false
+      - molecule: commRadius
+        concentration: *commRadius
   - in:
       type: Point
       parameters: [29, 29]
@@ -69,3 +75,5 @@ displacements:
         concentration: 0 # false
       - molecule: fake
         concentration: 0 # false
+      - molecule: commRadius
+        concentration: *commRadius
