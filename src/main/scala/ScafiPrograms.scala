@@ -8,7 +8,7 @@ trait ScafiAlchemistSupport { self: AggregateProgram =>
 
 class gradient extends AggregateProgram with ScafiAlchemistSupport {
   import scala.collection.mutable.{Map => MMap}
-  val trustThreshold = 0.5
+  val trustThreshold = 0.65
   lazy val commRadius = env.get[Double]("commRadius")
   
   def isSrc: Boolean = sense[Int]("source")==1
@@ -30,6 +30,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     env.put[Double]("gradientWithTrust", distWithTrust)    
     //}
     
+    env.put[Boolean]("error", Math.abs(dist-distWithTrust) > (5*dist/100))
+    
     dist
   }
 
@@ -46,7 +48,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     def orIfCompute(pred: T => Boolean)(compute: T => T): T = if(pred(value)) compute(value) else value
   }
   
-  def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Long = 26): Double = {
+  def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Long = 28): Double = {
     rep(Double.PositiveInfinity){ distance => 
       def dist = if(!fake) distance else (scala.util.Random.nextDouble())*1000
       val n = sumHoodP(1)
@@ -60,12 +62,21 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
          
       mux(source) { 0.0 } {
         if(currTime > startAt){
-          foldhoodPlus(Double.PositiveInfinity)(Math.min){
+          var distrustedNbrs = List[ID]()
+          val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
             val trustValue = calculateTrust(dist, xmean, s)
-            val newg = mux(trustable(trustValue)){ nbr{dist} + nbrRange }{ Double.PositiveInfinity } // dist/Math.pow(trustValue,4) 
-            env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "???")
+            val isTrusted = trustable(trustValue) 
+            val nbrId = nbr{mid()}
+            if(!isTrusted) { distrustedNbrs = nbrId :: distrustedNbrs}
+            val newg = mux(isTrusted){ nbr{dist} + nbrRange }{ Double.PositiveInfinity } // dist/Math.pow(trustValue,4) 
+            env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "??? " + isTrusted)
             newg
-          }.orIf(_==Double.PositiveInfinity){dist}
+          }
+          env.put("distrustedNbrs", distrustedNbrs)
+          val distrustedBy = foldhoodPlus(Map[ID,List[ID]]())(_++_)(Map(nbr{mid()->distrustedNbrs})).filter(_._2.contains(mid())).keys
+          env.put("distrusted", !distrustedBy.isEmpty)
+          env.put("distrustedBy", distrustedBy)
+          res.orIf(_==Double.PositiveInfinity){dist}
         } else{
           minHood( nbr{dist} + nbrRange )
         }
@@ -83,7 +94,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val nbrVal = nbr(field)
     val deviation = Math.abs(nbrVal - xmean)
     val declareItselfAsSource = nbr(isSrc)
-    val maxError = 10*s
+    val maxError = 30*s
     
     val (oldA,oldB) = map.getOrElse(nbrId, (0.0, 0.0))
     env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
