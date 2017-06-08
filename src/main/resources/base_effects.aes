@@ -250,7 +250,7 @@
     "red": {
       "max": 255,
       "min": 0,
-      "val": 0
+      "val": 255
     },
     "blue": {
       "max": 255,
@@ -260,7 +260,7 @@
     "green": {
       "max": 255,
       "min": 0,
-      "val": 186
+      "val": 0
     },
     "alpha": {
       "max": 255,
@@ -275,7 +275,7 @@
     "size": {
       "max": 100,
       "min": 0,
-      "val": 12
+      "val": 13
     },
     "molFilter": true,
     "molString": "fake",
@@ -300,7 +300,7 @@
       "val": 1
     },
     "colorCache": {
-      "value": -16729345,
+      "value": -65281,
       "falpha": 0.0
     }
   },

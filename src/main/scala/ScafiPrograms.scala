@@ -17,7 +17,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   override def main(): Double = {
     env.put[Boolean]("isFake", isFake)
     //val fakeSrc = if(isFake) scala.util.Random.nextBoolean else false
-    val fake = false // isFake
+    val fake = isFake
 
     val dist = gradient(isSrc)
     env.put[Double]("gradient", dist)
@@ -94,7 +94,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val nbrVal = nbr(field)
     val deviation = Math.abs(nbrVal - xmean)
     val declareItselfAsSource = nbr(isSrc)
-    val maxError = 30*s
+    val maxError = Math.max(s, 2) //30*s
     
     val (oldA,oldB) = map.getOrElse(nbrId, (0.0, 0.0))
     env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
@@ -122,7 +122,34 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   def sumHoodP(field: => Double) = foldhoodPlus[Double](0)(_+_)(nbr { field })
   def sumHoodP(field: => Boolean) = foldhoodPlus[Int](0)(_+_)(if(nbr{field}) 1 else 0)  
   
+  def meanCounter(value: Double, frequency: Long): Double = {
+	  val time = currTime
+	  val dt = deltaTime
+	  val count = rep ((0.0,0.0)) { case x => { // (accumulated value, last time)
+	    // Splits into windows of multiples of 'frequency'
+	    // and restarts at the beginning of each new window.
+	    // E.g., for frequency=5
+	    // Time:           0_____5_____10_____15_____20 ...
+	    // Restart:              ^      ^      ^      ^ ...
+	    // Floor(Time/freq):  0     1      2      3     ... 
+		  val restart = rep((false, time)) { t =>
+			  (Math.floor(time/frequency) > Math.floor(t._2/frequency), time)
+		  }._1
+		  // Reset value and time on restart
+		  val old = if (restart) (0.0,0.0)  else x
+		  // Filters infinite values out
+		  if (Double.NegativeInfinity < value && value < Double.PositiveInfinity) {
+		    // Sums value weighed by time
+		    (old._1+value*dt, old._2+dt)
+		  } else old
+	  } }
+	  // E.g., consider these values and deltas: (5.0,2), (6,1), (Inf,2), (7,1), (5,1)
+		// You'll finally have (5.0*2 + 6*1 + 7*1 + 5*1) / (2+1+1+1) = 28/5 = 5.6
+	  count._1 / count._2
+  }  
+  
   def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
   import it.unibo.alchemist.model.interfaces.Time
   def currTime: Long = sense[Time]("time").toDouble().toLong
+  def deltaTime: Long = sense[Double]("dt").toLong
 }
