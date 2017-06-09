@@ -11,16 +11,20 @@ trait ScafiAlchemistSupport { self: AggregateProgram =>
 class gradient extends AggregateProgram with ScafiAlchemistSupport {
   val trustThreshold = 0.65
   var fakeValue: Double = 0.0
-  val startTrustAlgorithmAt = 23
+  val startTrustAlgorithmAt = 0
+  val observationWindow = 12
+  lazy val commRadius = env.get[Double]("commRadius")
+  lazy val errorLB = 1.2*commRadius
   
   def isSrc: Boolean = sense[Int]("source")==1
   def isFake: Boolean = sense[Int]("fake")==1
 
   def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
-  def currTime: Long = sense[Time]("time").toDouble().toLong
-  def deltaTime: Long = sense[Double]("dt").toLong  
+  def currTime: Double = sense[Time]("time").toDouble()
+  def deltaTime: Double = sense[Double]("dt")
   
-  lazy val commRadius = env.get[Double]("commRadius")
+  def nextFakeValue = (scala.util.Random.nextDouble())*30 // 2
+  val keepFakeValueTime = 0
   
   // Keeps a pair (a,b) for each node that is used to calculate a trust score
   var map = Map[ID,(Double,Double)]()
@@ -30,9 +34,9 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     //val fakeSrc = if(isFake) scala.util.Random.nextBoolean else false
     val fake = isFake
     
-    if(isFake){ // Sets fake value to be produced in this round
-      fakeValue = 2 // (scala.util.Random.nextDouble())*1000
-    }
+    branch(isFake){ // Sets fake value to be produced in this round
+      fakeValue = keepFor(keepFakeValueTime, nextFakeValue)
+    }{ /* do nothing */ }
 
     val dist = gradient(isSrc)
     env.put[Double]("gradient", dist)
@@ -100,22 +104,20 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val nbrVal = nbr(field)
     val deviation = Math.abs(nbrVal - xmean)
     val declareItselfAsSource = nbr(isSrc)
-    val maxError = Math.max(s, 2) //30*s
+    val maxError = Math.max(s, errorLB)
     
-    val (oldA,oldB) = map.getOrElse(nbrId, (0.0, 0.0))
-    branch(nbrVal.isFinite){
-      env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
-      map += nbrId -> (if(deviation > maxError && !declareItselfAsSource) (oldA, oldB+1) else (oldA+1, oldB))
-      val (a,b) = map(nbrId)
-      //    val (a,b) = rep[MMap[ID,(Double,Double)]](MMap()){ m => 
-      //      mapHood(m, (0.0, 0.0)){ case (_,(oldA,oldB)) => if(deviation > s) (oldA, oldB+1) else (oldA+1, oldB) }
-      //    }.getOrElse(nbrId, (0.0,0.0))
-      
-      env.put(s"trust_params_${nbr(mid())}__", (a,b))
-      beta(a,b)
-    }{
-      trustThreshold
-    }
+    val obss = rep[MMap[ID,List[(Double,Double)]]](MMap()){ m => 
+      val history = m.getOrElse(nbrId, List())
+      val obs = if(nbrVal.isFinite){
+        if(deviation > maxError && !declareItselfAsSource) (0.0, 1.0) else (1.0, 0.0)
+      } else {
+        (0.0,0.0)
+      }
+      m.put(nbrId, (obs :: history).take(observationWindow))
+      m
+    }.getOrElse(nbrId, List())
+    val (a,b) = obss.foldRight((1.0,0.0))((t1,t2) => (t1._1+t2._1, t1._2+t2._2))
+    beta(a,b)
   }
   
   def beta(a: Double, b: Double) = (a+1)/(a+b+2)
@@ -138,6 +140,10 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     fold[Int](fops.includeSelf)(0)(_+_)(if(field) 1 else 0)
   def fold[T](includeSelf: Boolean) = 
     branch(includeSelf){ (foldhood[T] _) }{ (foldhoodPlus[T] _) }
+    
+  def keepFor(time: Double, f: => Double): Double = rep[(Double,Double)]((currTime,f)){ case (lastTime,oldVal) =>
+    mux(currTime-lastTime > time){ (currTime, f) } { (lastTime, oldVal) }
+  }._2
   
   def meanCounter(value: Double, frequency: Long): Double = {
 	  val time = currTime

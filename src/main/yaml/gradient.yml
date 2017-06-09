@@ -5,7 +5,7 @@ variables:
     step: 1
     default: 0
   commRadius: &commRadius
-    formula: 1.6
+    formula: 2.6
     
 seeds:
   scenario: *random
@@ -30,7 +30,7 @@ pools:
   - pool: &turnIntoFake
     - time-distribution: 
         type: Trigger
-        parameters: [22]
+        parameters: [12]
       type: Event
       actions:
         - type: SetLocalMoleculeConcentration
@@ -65,8 +65,8 @@ displacements:
       - molecule: commRadius
         concentration: *commRadius
   - in:
-      type: Point
-      parameters: [22, 22]
+      type: Grid
+      parameters: [5, 5, 25, 25, 20, 20, 0, 0]
     programs: 
       - *program
       - *turnIntoFake
