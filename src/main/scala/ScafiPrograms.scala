@@ -11,7 +11,7 @@ trait ScafiAlchemistSupport { self: AggregateProgram =>
 class gradient extends AggregateProgram with ScafiAlchemistSupport {
   val trustThreshold = 0.65
   var fakeValue: Double = 0.0
-  val startTrustAlgorithmAt = 24
+  val startTrustAlgorithmAt = 23
   
   def isSrc: Boolean = sense[Int]("source")==1
   def isFake: Boolean = sense[Int]("fake")==1
@@ -40,10 +40,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val distWithFakes = gradient(isSrc, fake)
     env.put[Double]("gradientUnderAttack", distWithFakes)
     
-    //if(currTime > 22){
     val distWithTrust = gradientWithTrust(isSrc, fake)
-    env.put[Double]("gradientWithTrust", distWithTrust)    
-    //}
+    env.put[Double]("gradientWithTrust", distWithTrust)
     
     env.put[Boolean]("error", Math.abs(dist-distWithTrust) > (5*dist/100))
     
@@ -61,17 +59,17 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Long = startTrustAlgorithmAt): Double = {
     rep(Double.PositiveInfinity){ distance => 
       def dist = if(!fake) distance else fakeValue
-      val n = sumHoodP(1)
-      env.put("nbrVals", mapHood(MMap[ID,Double](),-1.0)((x,y) => nbr{dist}))
-      val xmean = sumHoodP(dist) / n
-      //val sLB = maxHood { if(nbr{source}) nbrRange else Double.NegativeInfinity } // lower bound value for s
-      //env.put("sLB", sLB)
-      //val s = Math.max(sLB, Math.sqrt( sumHoodP{ Math.pow(dist - xmean, 2) } / n ))
-      val s = Math.sqrt( sumHoodP{ Math.pow(dist - xmean, 2) } / n)
-      env.put("n_sum_mean_sumsq_s", (n,sumHoodP(dist),xmean,sumHoodP{ Math.pow(dist-xmean, 2) },s))
+      def nbrDist = nbr { dist }
+      val n = countHood(nbrDist.isFinite)
+      env.put("nbrVals", mapHood(MMap[ID,Double](),-1.0)((x,y) => nbrDist))
+      val sumValues = sumHood(nbrDist)
+      val xmean =  sumValues / n
+      val sumSqDev = sumHood{ Math.pow(dist - xmean, 2) }
+      val s = Math.sqrt(sumSqDev / n)
+      env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
          
       mux(source) { 0.0 } {
-        if(currTime > startAt){
+        branch(currTime > startAt){
           var distrustedNbrs = List[ID]()
           val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
             val trustValue = calculateTrust(dist, xmean, s)
@@ -87,7 +85,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
           env.put("distrusted", !distrustedBy.isEmpty)
           env.put("distrustedBy", distrustedBy)
           res.orIf(_==Double.PositiveInfinity){dist}
-        } else{
+        }{
           minHood( nbr{dist} + nbrRange )
         }
       }
@@ -105,15 +103,19 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val maxError = Math.max(s, 2) //30*s
     
     val (oldA,oldB) = map.getOrElse(nbrId, (0.0, 0.0))
-    env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
-    map += nbrId -> (if(deviation > maxError && !declareItselfAsSource) (oldA, oldB+1) else (oldA+1, oldB))
-    val (a,b) = map(nbrId)
-    //    val (a,b) = rep[MMap[ID,(Double,Double)]](MMap()){ m => 
-    //      mapHood(m, (0.0, 0.0)){ case (_,(oldA,oldB)) => if(deviation > s) (oldA, oldB+1) else (oldA+1, oldB) }
-    //    }.getOrElse(nbrId, (0.0,0.0))
-    
-    env.put(s"trust_params_${nbr(mid())}__", (a,b))
-    beta(a,b)
+    branch(nbrVal.isFinite){
+      env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
+      map += nbrId -> (if(deviation > maxError && !declareItselfAsSource) (oldA, oldB+1) else (oldA+1, oldB))
+      val (a,b) = map(nbrId)
+      //    val (a,b) = rep[MMap[ID,(Double,Double)]](MMap()){ m => 
+      //      mapHood(m, (0.0, 0.0)){ case (_,(oldA,oldB)) => if(deviation > s) (oldA, oldB+1) else (oldA+1, oldB) }
+      //    }.getOrElse(nbrId, (0.0,0.0))
+      
+      env.put(s"trust_params_${nbr(mid())}__", (a,b))
+      beta(a,b)
+    }{
+      trustThreshold
+    }
   }
   
   def beta(a: Double, b: Double) = (a+1)/(a+b+2)
@@ -125,12 +127,17 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     MMap(nbrId -> f(nbrId, m.getOrElse(nbrId, default))) 
   }
   
-  def minHood(field: => Double) = foldhood[Double](Double.PositiveInfinity)(Math.min)(field)
-  def maxHood(field: => Double) = foldhood[Double](Double.NegativeInfinity)(Math.max)(field)
-  def sumHood(field: => Double) = foldhood[Double](0)(_+_)(nbr { field })
-  def sumHood(field: => Boolean) = foldhood[Int](0)(_+_)(if(nbr{field}) 1 else 0)
-  def sumHoodP(field: => Double) = foldhoodPlus[Double](0)(_+_)(nbr { field })
-  def sumHoodP(field: => Boolean) = foldhoodPlus[Int](0)(_+_)(if(nbr{field}) 1 else 0)  
+  case class FoldingOptions(includeSelf: Boolean = false, onlyFinite: Boolean = true)
+  def minHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
+    fold[Double](fops.includeSelf)(Double.PositiveInfinity)(Math.min)(field)
+  def maxHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
+    fold[Double](fops.includeSelf)(Double.NegativeInfinity)(Math.max)(field)
+  def sumHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
+    fold[Double](fops.includeSelf)(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
+  def countHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
+    fold[Int](fops.includeSelf)(0)(_+_)(if(field) 1 else 0)
+  def fold[T](includeSelf: Boolean) = 
+    branch(includeSelf){ (foldhood[T] _) }{ (foldhoodPlus[T] _) }
   
   def meanCounter(value: Double, frequency: Long): Double = {
 	  val time = currTime
