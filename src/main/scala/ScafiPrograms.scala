@@ -1,23 +1,38 @@
 import it.unibo.alchemist.implementation.nodes.NodeManager
 import it.unibo.alchemist.model.interfaces.Node
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
+import it.unibo.alchemist.model.interfaces.Time
+import scala.collection.mutable.{Map => MMap}
 
 trait ScafiAlchemistSupport { self: AggregateProgram =>
   def env = sense[NodeManager]("manager")
 }
 
 class gradient extends AggregateProgram with ScafiAlchemistSupport {
-  import scala.collection.mutable.{Map => MMap}
   val trustThreshold = 0.65
-  lazy val commRadius = env.get[Double]("commRadius")
+  var fakeValue: Double = 0.0
+  val startTrustAlgorithmAt = 24
   
   def isSrc: Boolean = sense[Int]("source")==1
   def isFake: Boolean = sense[Int]("fake")==1
+
+  def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
+  def currTime: Long = sense[Time]("time").toDouble().toLong
+  def deltaTime: Long = sense[Double]("dt").toLong  
+  
+  lazy val commRadius = env.get[Double]("commRadius")
+  
+  // Keeps a pair (a,b) for each node that is used to calculate a trust score
+  var map = Map[ID,(Double,Double)]()
   
   override def main(): Double = {
     env.put[Boolean]("isFake", isFake)
     //val fakeSrc = if(isFake) scala.util.Random.nextBoolean else false
     val fake = isFake
+    
+    if(isFake){ // Sets fake value to be produced in this round
+      fakeValue = 2 // (scala.util.Random.nextDouble())*1000
+    }
 
     val dist = gradient(isSrc)
     env.put[Double]("gradient", dist)
@@ -38,19 +53,14 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   def gradient(source: Boolean, fake: Boolean = false): Double =
     rep(Double.PositiveInfinity){
       distance => mux(source) { 0.0 } {
-        def shareDistance = if(!fake) nbr{distance} else nbr{(scala.util.Random.nextDouble())*1000}
+        def shareDistance = if(!fake) nbr{distance} else nbr{fakeValue}
         foldhoodPlus(Double.PositiveInfinity)(Math.min)(shareDistance + nbrRange)
       }
     }
   
-  implicit class RichValue[T](val value: T){
-    def orIf(pred: T => Boolean)(newValue: T): T = orIfCompute(pred)(_ => newValue)
-    def orIfCompute(pred: T => Boolean)(compute: T => T): T = if(pred(value)) compute(value) else value
-  }
-  
-  def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Long = 28): Double = {
+  def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Long = startTrustAlgorithmAt): Double = {
     rep(Double.PositiveInfinity){ distance => 
-      def dist = if(!fake) distance else (scala.util.Random.nextDouble())*1000
+      def dist = if(!fake) distance else fakeValue
       val n = sumHoodP(1)
       env.put("nbrVals", mapHood(MMap[ID,Double](),-1.0)((x,y) => nbr{dist}))
       val xmean = sumHoodP(dist) / n
@@ -83,8 +93,6 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       }
     } 
   }
-   
-  var map = Map[ID,(Double,Double)]()
   
   /**
    * Returns the alpha and beta parameters of the beta distribution
@@ -100,13 +108,15 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
     map += nbrId -> (if(deviation > maxError && !declareItselfAsSource) (oldA, oldB+1) else (oldA+1, oldB))
     val (a,b) = map(nbrId)
-//    val (a,b) = rep[MMap[ID,(Double,Double)]](MMap()){ m => 
-//      mapHood(m, (0.0, 0.0)){ case (_,(oldA,oldB)) => if(deviation > s) (oldA, oldB+1) else (oldA+1, oldB) }
-//    }.getOrElse(nbrId, (0.0,0.0))
+    //    val (a,b) = rep[MMap[ID,(Double,Double)]](MMap()){ m => 
+    //      mapHood(m, (0.0, 0.0)){ case (_,(oldA,oldB)) => if(deviation > s) (oldA, oldB+1) else (oldA+1, oldB) }
+    //    }.getOrElse(nbrId, (0.0,0.0))
     
     env.put(s"trust_params_${nbr(mid())}__", (a,b))
-    (a+1)/(a+b+2)
+    beta(a,b)
   }
+  
+  def beta(a: Double, b: Double) = (a+1)/(a+b+2)
   
   def trustable(trustValue: Double): Boolean = trustValue >= trustThreshold
   
@@ -146,10 +156,18 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
 	  // E.g., consider these values and deltas: (5.0,2), (6,1), (Inf,2), (7,1), (5,1)
 		// You'll finally have (5.0*2 + 6*1 + 7*1 + 5*1) / (2+1+1+1) = 28/5 = 5.6
 	  count._1 / count._2
+  }
+  
+  implicit class RichValue[T](val value: T){
+    def orIf(pred: T => Boolean)(newValue: T): T = orIfCompute(pred)(_ => newValue)
+    def orIfCompute(pred: T => Boolean)(compute: T => T): T = if(pred(value)) compute(value) else value
   }  
   
-  def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
-  import it.unibo.alchemist.model.interfaces.Time
-  def currTime: Long = sense[Time]("time").toDouble().toLong
-  def deltaTime: Long = sense[Double]("dt").toLong
+  implicit class RichPred[T](val p: T => Boolean) {
+     def not: T => Boolean = v => !p(v)
+  }
+  
+  implicit class MyRichDouble(val d: Double) {
+    def isFinite: Boolean = !d.isInfinite && !d.isNaN
+  }  
 }

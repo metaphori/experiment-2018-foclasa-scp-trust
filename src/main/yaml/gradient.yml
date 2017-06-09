@@ -66,7 +66,7 @@ displacements:
         concentration: *commRadius
   - in:
       type: Point
-      parameters: [29, 29]
+      parameters: [22, 22]
     programs: 
       - *program
       - *turnIntoFake
