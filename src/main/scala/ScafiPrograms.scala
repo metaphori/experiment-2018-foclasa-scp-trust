@@ -9,30 +9,33 @@ trait ScafiAlchemistSupport { self: AggregateProgram =>
 }
 
 class gradient extends AggregateProgram with ScafiAlchemistSupport {
-  val trustThreshold = 0.65
-  var fakeValue: Double = 0.0
-  val startTrustAlgorithmAt = 0
-  val observationWindow = 12
+  lazy val trustThreshold = env.get[Double]("trustThreshold")
+  lazy val startTrustAlgorithmAt = env.get[Double]("startTrustAlgorithmAt")
+  lazy val observationWindow = env.get[Double]("observationWindowSize").toInt
   lazy val commRadius = env.get[Double]("commRadius")
-  lazy val errorLB = 1.2*commRadius
+  lazy val errorLB = env.get[Double]("errorLB")
+  lazy val fakeAreaSize = env.get[Double]("fakeAreaSize")
   
   def isSrc: Boolean = sense[Int]("source")==1
   def isFake: Boolean = sense[Int]("fake")==1
+  def isInFakeArea: Boolean = gradient(isFake)<=fakeAreaSize
 
   def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
   def currTime: Double = sense[Time]("time").toDouble()
   def deltaTime: Double = sense[Double]("dt")
-  
-  def nextFakeValue = (scala.util.Random.nextDouble())*30 // 2
+
+  var fakeValue: Double = 0.0
   val keepFakeValueTime = 0
+  def nextFakeValue = (scala.util.Random.nextDouble())*30 // 2
   
   // Keeps a pair (a,b) for each node that is used to calculate a trust score
   var map = Map[ID,(Double,Double)]()
   
   override def main(): Double = {
+    val fake = isInFakeArea
     env.put[Boolean]("isFake", isFake)
+    env.put[Boolean]("isInFakeArea", fake)
     //val fakeSrc = if(isFake) scala.util.Random.nextBoolean else false
-    val fake = isFake
     
     branch(isFake){ // Sets fake value to be produced in this round
       fakeValue = keepFor(keepFakeValueTime, nextFakeValue)
@@ -46,8 +49,11 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     
     val distWithTrust = gradientWithTrust(isSrc, fake)
     env.put[Double]("gradientWithTrust", distWithTrust)
-    
-    env.put[Boolean]("error", Math.abs(dist-distWithTrust) > (5*dist/100))
+
+    env.put[Double]("error-fakes", Math.abs(dist-distWithFakes))
+    env.put[Double]("error-trust", Math.abs(dist-distWithTrust))
+    env.put[Boolean]("n-error-fakes", Math.abs(dist-distWithFakes) > (5*dist/100))
+    env.put[Boolean]("n-error-trust", Math.abs(dist-distWithTrust) > (5*dist/100))
     
     dist
   }
@@ -60,7 +66,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       }
     }
   
-  def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Long = startTrustAlgorithmAt): Double = {
+  def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Double = startTrustAlgorithmAt): Double = {
     rep(Double.PositiveInfinity){ distance => 
       def dist = if(!fake) distance else fakeValue
       def nbrDist = nbr { dist }
@@ -103,13 +109,13 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val nbrId = nbr(mid())
     val nbrVal = nbr(field)
     val deviation = Math.abs(nbrVal - xmean)
-    val declareItselfAsSource = nbr(isSrc)
     val maxError = Math.max(s, errorLB)
     
     val obss = rep[MMap[ID,List[(Double,Double)]]](MMap()){ m => 
       val history = m.getOrElse(nbrId, List())
+      env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
       val obs = if(nbrVal.isFinite){
-        if(deviation > maxError && !declareItselfAsSource) (0.0, 1.0) else (1.0, 0.0)
+        if(deviation > maxError) (0.0, 1.0) else (1.0, 0.0)
       } else {
         (0.0,0.0)
       }
@@ -136,6 +142,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     fold[Double](fops.includeSelf)(Double.NegativeInfinity)(Math.max)(field)
   def sumHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
     fold[Double](fops.includeSelf)(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
+  def anyHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
+    fold[Boolean](fops.includeSelf)(false)(_||_)(field)
   def countHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
     fold[Int](fops.includeSelf)(0)(_+_)(if(field) 1 else 0)
   def fold[T](includeSelf: Boolean) = 

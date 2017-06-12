@@ -278,7 +278,7 @@
       "val": 13
     },
     "molFilter": true,
-    "molString": "fake",
+    "molString": "isInFakeArea",
     "molPropertyFilter": true,
     "property": "",
     "writingPropertyValue": false,
