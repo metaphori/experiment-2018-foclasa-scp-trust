@@ -23,10 +23,11 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
   def currTime: Double = sense[Time]("time").toDouble()
   def deltaTime: Double = sense[Double]("dt")
+  def nextRandom: Double = sense[()=>java.lang.Double]("random")().toDouble
 
   var fakeValue: Double = 0.0
   val keepFakeValueTime = 0
-  def nextFakeValue = (scala.util.Random.nextDouble())*30 // 2
+  def nextFakeValue = (nextRandom)*30 // 2
   
   // Keeps a pair (a,b) for each node that is used to calculate a trust score
   var map = Map[ID,(Double,Double)]()
@@ -37,7 +38,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     env.put[Boolean]("isInFakeArea", fake)
     //val fakeSrc = if(isFake) scala.util.Random.nextBoolean else false
     
-    branch(isFake){ // Sets fake value to be produced in this round
+    branch(fake){ // Sets fake value to be produced in this round
       fakeValue = keepFor(keepFakeValueTime, nextFakeValue)
     }{ /* do nothing */ }
 
@@ -82,6 +83,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
         branch(currTime > startAt){
           var distrustedNbrs = List[ID]()
           val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
+            // TODO: also 'distrusted' nodes may distrust other nodes; may we deal with it?
             val trustValue = calculateTrust(dist, xmean, s)
             val isTrusted = trustable(trustValue) 
             val nbrId = nbr{mid()}
@@ -90,9 +92,20 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
             env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "??? " + isTrusted)
             newg
           }
+          // TODO: we may keep the id of the device that provided the minimum value
+          //       plus a backup values (e.g., current one), 
+          //       so that if that very device will be distrusted in the near future, 
+          //       we can rollback.
           env.put("distrustedNbrs", distrustedNbrs)
-          val distrustedBy = foldhoodPlus(Map[ID,List[ID]]())(_++_)(Map(nbr{mid()->distrustedNbrs})).filter(_._2.contains(mid())).keys
-          env.put("distrusted", !distrustedBy.isEmpty)
+          val distrustedBy = foldhoodPlus(Map[ID,List[ID]]())(_++_)(Map(nbr{mid()->distrustedNbrs})).filter(_._2.contains(mid())).keySet
+          
+          // TODO: 'distrusted' only if it comes from at least one 'non-distrusted' node.
+          //val distrusted = !distrustedBy.isEmpty && 
+          //  anyHood(distrustedBy.contains(nbr{mid()}) && 
+          //      (nbr{distrustedBy}.isEmpty || nbr{distrustedBy}.size==1 && nbr{distrustedBy}==mid()))
+          
+          val distrusted = !distrustedBy.isEmpty
+          env.put("distrusted", distrusted)
           env.put("distrustedBy", distrustedBy)
           res.orIf(_==Double.PositiveInfinity){dist}
         }{
@@ -103,15 +116,19 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   }
   
   /**
-   * Returns the alpha and beta parameters of the beta distribution
+   * Returns a score based on a beta distribution.
    */
   def calculateTrust(field: => Double, xmean: Double, s: Double): Double = {        
-    val nbrId = nbr(mid())
-    val nbrVal = nbr(field)
+    val (nbrId, nbrVal) = nbr(mid(), field)
     val deviation = Math.abs(nbrVal - xmean)
     val maxError = Math.max(s, errorLB)
     
-    val obss = rep[MMap[ID,List[(Double,Double)]]](MMap()){ m => 
+    type MutableField[T] = MMap[ID,T]
+    def MutableField[T](): MutableField[T] = MMap[ID,T]()
+    type AlfaBetaPair = (Double, Double)
+    type AlfaBetaHistory = List[AlfaBetaPair]
+    
+    val obss = rep(MutableField[AlfaBetaHistory]()){ m => 
       val history = m.getOrElse(nbrId, List())
       env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
       val obs = if(nbrVal.isFinite){
@@ -122,7 +139,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       m.put(nbrId, (obs :: history).take(observationWindow))
       m
     }.getOrElse(nbrId, List())
-    val (a,b) = obss.foldRight((1.0,0.0))((t1,t2) => (t1._1+t2._1, t1._2+t2._2))
+    val (a,b) = obss.foldRight((1.0,0.0))((t,u) => (t._1+u._1, t._2+u._2))
+    env.put(s"trust_params(a,b)_${nbr(mid())}_", (a,b))
     beta(a,b)
   }
   
