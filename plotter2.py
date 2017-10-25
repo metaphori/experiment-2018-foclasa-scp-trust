@@ -26,6 +26,7 @@ import pprint
 ############################## Script functions #################################
 #################################################################################
 
+# returns: list of full paths of files (under directory `basedir`) filtered through a file prefix (`basefn`)
 def get_data_files(basedir, basefn):
   return [join(basedir,p) for p in listdir(basedir) if isfile(join(basedir,p)) and p.startswith(basefn)]
 
