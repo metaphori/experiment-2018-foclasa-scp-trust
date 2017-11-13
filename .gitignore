@@ -4,3 +4,7 @@ build/
 .gradle/
 data/raw/
 .nfs*
+.cache-main
+.settings/org.scala-ide.sdt.core.prefs
+data/
+exec.txt

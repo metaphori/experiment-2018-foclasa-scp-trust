@@ -1,0 +1,100 @@
+==========================
+========================== FOCLASA
+========================== 
+
+Defaults:
+- random = 0
+- commRadius = 2.0
+- turnIntoFakeAt = 18
+- startTrustAlgorithmAt = 0
+- observationWindowSize = 12
+- trustThreshold = 0.75   (theta)
+- errorLBfactor = 1.5
+- errorLB = commRadius * errorLBfactor
+- distanceFromSource = 9
+- fakeGridStart = 15 - distanceFromSource; fakeGridEnd = 15 + distanceFromSource; fakeGridSize = fakeGridEnd - fakeGridStart; fakeAreaSize = 0
+- turnIntoSourceAt = 0
+
+Exports:
+- time
+- error-fakes   [sum] (onlyfinite)     Sum of error in gradient if fake nodes are used
+- error-trust   [sum] (onlyfinite)     Sum of error in gradient if fake nodes are used but gradient algorithm uses trust
+- n-error-fakes [sum]                  Number of devices registering error > 5% if fake nodes are used
+- n-error-trust [sum]                  Number of devices registering error > 5% if fake nodes are used but gradient algorithm uses trust
+- distrusted    [sum]                  Number of devices that are distrusted by at least one neighbour
+
+--------------------------------------------------- Experiment 1: 2017-10-24 10:50 -> 12:10
+
+GOAL: better understand what happens by varying trustThreshold (theta) and maxError (s) (by changing errorLBfactor, a multiplier for s)
+  ==> val maxError = s * errorLBfactor
+
+$ java -Xmx5024m -cp "bin:libs/alchemist-redist-5.1.0.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var trustThreshold errorLBfactor  -e data/foclasa102411 -t 600 -p 2 -i 1 -v &> exec.txt &
+
+  * errorLBfactor  => min: 1.0 | max: 15   | step: 2.5    ==> 5
+  * trustThreshold => min: 0.5 | max: 0.85 | step: 0.05   ==> 8
+  ==> # of runs: 40
+
+$ ./plotter2.py data foclasa102411
+
+RESULTS:                        
+  trustThreshold = 0.50   ==> errorLBfactor 1.00 (ERR-TRUST diverges), 3.5 (waves of error [1100-2000]), 6 (bigger waves and higher error), >= 8.5 (diverges)
+                                            <= 3.5 (DISTRUST almost all nodes), 6 (mean 600), 8.5 (mean 300), 11 (mean 200), 13 (mean 180)
+                                            <= 3.5 (n-err-fakes < n-err-trust !!), 6 (n-err-trust < n-err-fakes), >= 8.5 (n-err-trust like n-err-fakes with mean  650) ... notice that the 2 curves (n-err-fakes and n-err-trust) have more or less same shape
+      0.55 0.6 0.65 0.7   ==>               1.00 (diverges), 3.5 6.0 8.5 11 13.5 (waves of error [1500-2000])   
+                   0.75   ==>               1.00 (diverges), 3.5 (>2000, possibly diverges), >3.5 (waves of error [1300-1900])
+                   0.80   ==>               1.00 (diverges), 3.5 (>2000, possibly diverges), 6.0 (waves err [1200-1700]), 8.5 (waves err [1200-1800]), >=11 (waves err [1400-2000]), 
+
+NOTES:
+- Before this experiment we had       maxError = Math.max(s, errorLB)
+                          where       errorLB = commRadius * errorLBfactor = 2.0 * 1.5
+- In this run we had        maxError = s * errorLBfactor
+
+CONSEQUENCES:
+- Maybe we need to analyze 's' values, finding their shape so as to understand how maxError should be defined
+
+
+--------------------------------------------------- Experiment 2: 2017-10-25 
+
+Let's take one step back, considering again   ==>  val maxError = Math.max(s, errorLB)
+
+--------------------------------------------------- Experiment 3: 2017-10-31 
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-5.1.0.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random errorLB distanceFromSource  -e data/20171031foclasa -t 160 -p 2 -v &> exec.txt &
+
+  errorLB: &errorLB
+    min: 1
+    max: 3
+    step: 0.5
+    default: 3
+    
+Let's look what happens for smaller values of errorLB (previously it was errorLBfactor*commRadius=1.5*2=3)
+
+RESULTS:
+  Divergent behaviour for errorLB = [1, 1.5]
+  Convergent behavior for errorLB = [2, 2.5, 3] with better behaviour as it grows
+
+  
+--------------------------------------------------- Experiment 4: 2017-10-31 
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-5.1.0.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random distanceFromSource  -e data/20171031foclasa3 -t 100 -p 2 -v &> exec.txt &
+
+RESULTS:
+  's' values grow kinda linearly only for nodes that are near fakes; 
+  for nodes far from fakes 's' values grow very very slowly;
+  for nodes that are neighbours to neighbours of the fakes unfortunately the experiment yielded NaNs
+
+--------------------------------------------------- Experiment 5: 2017-11-03 
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-5.1.0.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random errorLB distanceFromSource  -e data/20171103foclasa1 -t 300 -p 2 -v &> exec.txt &
+
+*******************
+
+Up to now, experiments have confirmed the specific selection of value ranges for parameters
+ that ensure convergence of the trust algorithm in this particular scenario.
+However, we still lack a deep understanding of how to select the right values for the params.
+
+
+
+
+
+
