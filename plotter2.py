@@ -20,6 +20,7 @@ import re
 import pylab as pl                   # frange
 import math                          # isnan, isinf, ceil
 import pprint
+from collections import defaultdict
 #import copy  # copy.deepcopy(myDict)
 
 #################################################################################
@@ -36,12 +37,10 @@ def remove_tuple_item_at_index(tpl,i):
 # configs: list where each config is an N-dim tuple of (dim,val) tuples   
 # returns: dict where keys are (dims-dim) and values are lists of configs
 def group_by_varying_values_of(dim, configs):
-  res = dict()
+  res = defaultdict(list)
   for config in configs:
     configWithoutDim = tuple([d for d in config if d[0]!=dim])
-    lsts = res.get(configWithoutDim, [])
-    lsts.append(config)
-    res[configWithoutDim] = lsts
+    res[configWithoutDim].append(config)
   return res
   
 # Globals used
@@ -109,12 +108,25 @@ def merge_samples(contents, configs):
   for config,sconfigs in configs.items():
     nsamples = len(sconfigs)
     print("CONFIGURATION: " + str(config) + " has " + str(nsamples) + " samples.")
+    
     matrices = [contents[sample_config] for sample_config in sconfigs]
     time = map(lambda x: round(x), matrices[0][0]) # time should be the same for all
     matrices = map(lambda l: l[1:], matrices) # skips the time dimension for each sample
+    # Assumption: the position of values in matrices reflects the time in a consistent manner
+    
+    # Printing statistics
+    #nplots = len(the_plots_labels) 
+    #stats = dict()
+    #for expdim in range(0,nplots-1): # without 'time', which should be at index 0
+    #  for m in matrices:
+    #    curdata = m[expdim]
+    #    curstats = stats.get(expdim, np.zeros(len(curdata)))
+    #    stats[expdim] = curstats + curdata
+    #print(stats)
+    
     merged = reduce(lambda a,b: a+b, matrices)
     merged = map(lambda x: x/nsamples, merged)
-    merged.insert(0,time)
+    merged.insert(0,time) # reinserts time
     res[config] = merged
   return res
   
@@ -190,7 +202,8 @@ print('*************************')
 print('*** PER FILE PLOTTING ***')
 print('*************************')
 
-# CONTENTS: {key => matrix}
+# CONTENTS: a dict from file descriptors (dimension k/v pairs) to file contents (matrix data)
+#   Dictionary {key => matrix}
 #   file1 [d1=A  d2=B ] => export1=[...], ..., exportK=[...]
 #   file2 [d1=A' d2=B ] => export1=[...], ..., exportK=[...]  
 #   file3 [d1=A  d2=B'] => export1=[...], ..., exportK=[...]
@@ -202,7 +215,10 @@ contents = process_files(files)
 #   file3_4 [d1=*, d2=B'] => export1=[...], ..., exportK=[...]
 configs = contents.keys() # List of configs, where each config is an N-dim tuple of (k,v) tuples
 if sampling:
+  # Let's group configurations (individual datasets) into groups where only a sampling dimension varies
+  # sconfigs is a dict where keys are (dims-'random') and values are lists of configs
   sconfigs = group_by_varying_values_of('random', configs)
+  
   merged_contents = merge_samples(contents, sconfigs)
   for title,content in merged_contents.items():
     plot(title,content)
