@@ -47,7 +47,7 @@ variables:
   turnIntoSourceAt: &turnIntoSourceAt
     formula: 0
   fakeAreaSize: &fakeAreaSize
-    formula: 0
+    formula: 0.0
           
 export:
   - time

@@ -69,13 +69,13 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   
   def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Double = startTrustAlgorithmAt): Double = {
     rep(Double.PositiveInfinity){ distance => 
-      def dist = if(!fake) distance else fakeValue
+      val dist = if(!fake) distance else fakeValue
       def nbrDist = nbr { dist }
       val n = countHood(nbrDist.isFinite)
       env.put("nbrVals", mapHood(MMap[ID,Double](),-1.0)((x,y) => nbrDist))
-      val sumValues = sumHood(nbrDist)
+      val sumValues = sumHood(mux(nbrDist.isFinite){ nbrDist }{ 0.0 } )
       val xmean =  sumValues / n
-      val sumSqDev = sumHood{ Math.pow(dist - xmean, 2) }
+      val sumSqDev = sumHood(mux(nbrDist.isFinite){ Math.pow(dist - xmean, 2) } { 0.0 })
       val s = Math.sqrt(sumSqDev / n)
       env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
          
@@ -119,7 +119,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
    * Returns a score based on a beta distribution.
    */
   def calculateTrust(field: => Double, xmean: Double, s: Double): Double = {        
-    val (nbrId, nbrVal) = nbr(mid(), field)
+    val (nbrId, nbrVal) = nbr{ (mid(), field) }
     val deviation = Math.abs(nbrVal - xmean)
     val maxError = Math.max(s, errorLB)
     
@@ -128,17 +128,19 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     type AlfaBetaPair = (Double, Double)
     type AlfaBetaHistory = List[AlfaBetaPair]
     
-    val obss = rep(MutableField[AlfaBetaHistory]()){ m => 
-      val history = m.getOrElse(nbrId, List())
-      env.put(s"trust_lastcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
-      val obs = if(nbrVal.isFinite){
-        if(deviation > maxError) (0.0, 1.0) else (1.0, 0.0)
-      } else {
-        (0.0,0.0)
-      }
-      m.put(nbrId, (obs :: history).take(observationWindow))
-      m
-    }.getOrElse(nbrId, List())
+    val m = rep(MutableField[AlfaBetaHistory]()){ m => m }
+    
+    val history = m.getOrElse(nbrId, List())
+    env.put(s"trust_LASTcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ===> ${deviation > maxError}")
+    val obsEval = if(nbrVal.isFinite){
+      if(deviation > maxError) (0.0, 1.0) else (1.0, 0.0)
+    } else {
+      (0.0,0.0)
+    }
+    m.put(nbrId, (obsEval :: history).take(observationWindow))    
+    
+    val obss = m.getOrElse(nbrId, List())
+    
     val (a,b) = obss.foldRight((1.0,0.0))((t,u) => (t._1+u._1, t._2+u._2))
     env.put(s"trust_params(a,b)_${nbr(mid())}_", (a,b))
     beta(a,b)

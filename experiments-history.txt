@@ -87,12 +87,19 @@ RESULTS:
 
 java -Xmx5024m -cp "bin:libs/alchemist-redist-5.1.0.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random errorLB distanceFromSource  -e data/20171103foclasa1 -t 300 -p 2 -v &> exec.txt &
 
+--------------------------------------------------- Experiment 6: 2017-11-06
+
+Goal: study the effect of commRadius (communication radius, i.e., how dense is the network) on the error threshold
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-5.1.0.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random errorLB distanceFromSource commRadius  -e data/20171106foclasa1 -t 200 -p 2 -v &> exec.txt &
+
 *******************
 
 Up to now, experiments have confirmed the specific selection of value ranges for parameters
  that ensure convergence of the trust algorithm in this particular scenario.
 However, we still lack a deep understanding of how to select the right values for the params.
 
+NEXT STEP: recommendations
 
 
 
