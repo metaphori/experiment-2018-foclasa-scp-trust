@@ -50,11 +50,16 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     
     val distWithTrust = gradientWithTrust(isSrc, fake)
     env.put[Double]("gradientWithTrust", distWithTrust)
+    
+    val distWithTrustRecomm = gradientWithTrustPlusRecommendations(isSrc, fake)
+    env.put[Double]("gradientWithTrustPlusRecs", distWithTrustRecomm)
 
     env.put[Double]("error-fakes", Math.abs(dist-distWithFakes))
     env.put[Double]("error-trust", Math.abs(dist-distWithTrust))
+    env.put[Double]("error-trust-recomm", Math.abs(dist-distWithTrustRecomm))
     env.put[Boolean]("n-error-fakes", Math.abs(dist-distWithFakes) > (5*dist/100))
     env.put[Boolean]("n-error-trust", Math.abs(dist-distWithTrust) > (5*dist/100))
+    env.put[Boolean]("n-error-trust-recomm", Math.abs(dist-distWithTrustRecomm) > (5*dist/100))
     
     dist
   }
@@ -67,36 +72,44 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       }
     }
   
+  /**
+   * a: represent a positive observation
+   * b: represent a negative observation
+   */
+  case class TrustParams(a: Double, b: Double)
+  case class TrustProfile(nbrId: ID, params: TrustParams, value: Double)
+  
   def gradientWithTrust(source: Boolean, fake: Boolean = false, startAt: Double = startTrustAlgorithmAt): Double = {
     rep(Double.PositiveInfinity){ distance => 
       val dist = if(!fake) distance else fakeValue
       def nbrDist = nbr { dist }
       val n = countHood(nbrDist.isFinite)
-      env.put("nbrVals", mapHood(MMap[ID,Double](),-1.0)((x,y) => nbrDist))
+      //env.put("nbrVals", mapHood(MMap[ID,Double](),-1.0)((x,y) => nbrDist))
       val sumValues = sumHood(mux(nbrDist.isFinite){ nbrDist }{ 0.0 } )
       val xmean =  sumValues / n
       val sumSqDev = sumHood(mux(nbrDist.isFinite){ Math.pow(dist - xmean, 2) } { 0.0 })
       val s = Math.sqrt(sumSqDev / n)
-      env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
+      //env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
          
       mux(source) { 0.0 } {
         branch(currTime > startAt){
           var distrustedNbrs = List[ID]()
           val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
             // TODO: also 'distrusted' nodes may distrust other nodes; may we deal with it?
-            val trustValue = calculateTrust(dist, xmean, s)
+            val trustParams = calculateTrustParams(dist, xmean, s)
+            val trustValue = beta(trustParams.a, trustParams.b)
             val isTrusted = trustable(trustValue) 
             val nbrId = nbr{mid()}
             if(!isTrusted) { distrustedNbrs = nbrId :: distrustedNbrs}
             val newg = mux(isTrusted){ nbr{dist} + nbrRange }{ Double.PositiveInfinity } // dist/Math.pow(trustValue,4) 
-            env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "??? " + isTrusted)
+            //env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "??? " + isTrusted)
             newg
           }
           // TODO: we may keep the id of the device that provided the minimum value
           //       plus a backup values (e.g., current one), 
           //       so that if that very device will be distrusted in the near future, 
           //       we can rollback.
-          env.put("distrustedNbrs", distrustedNbrs)
+          //env.put("distrustedNbrs", distrustedNbrs)
           val distrustedBy = foldhoodPlus(Map[ID,List[ID]]())(_++_)(Map(nbr{mid()->distrustedNbrs})).filter(_._2.contains(mid())).keySet
           
           // TODO: 'distrusted' only if it comes from at least one 'non-distrusted' node.
@@ -113,12 +126,85 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
         }
       }
     } 
+  }  
+  
+  def gradientWithTrustPlusRecommendations(source: Boolean, fake: Boolean = false, startAt: Double = startTrustAlgorithmAt): Double = {
+    rep(Double.PositiveInfinity){ distance => 
+      val dist = if(!fake) distance else fakeValue
+      def nbrDist = nbr { dist }
+      val n = countHood(nbrDist.isFinite)
+      val sumValues = sumHood(mux(nbrDist.isFinite){ nbrDist }{ 0.0 } )
+      val xmean =  sumValues / n
+      val sumSqDev = sumHood(mux(nbrDist.isFinite){ Math.pow(dist - xmean, 2) } { 0.0 })
+      val s = Math.sqrt(sumSqDev / n)
+         
+      mux(source) { 0.0 } {
+        branch(currTime > startAt){
+          var distrustedNbrs = List[ID]()
+          // NOTE: beware of foldhoodPlus with side effects:
+          // as it is impl by now, on top of foldhood, 
+          // the expression is run for the 'self' as well!
+          val localTrustProfiles = foldhoodPlus(Map[ID,TrustProfile]())(_++_){
+            // TODO: also 'distrusted' nodes may distrust other nodes; may we deal with it?
+            val nbrId = nbr{mid()}
+            val trustParams = calculateTrustParams(dist, xmean, s)
+            Map(nbrId -> TrustProfile(nbrId, trustParams, nbr{dist}+nbrRange))
+          }
+          
+          val nbrTrustProfiles = foldhoodPlus(Map[ID,Map[ID,TrustProfile]]())(_++_){
+            Map(nbr{mid -> localTrustProfiles})
+          }
+          
+          // NOTE: beware using aggregate constructs inside foldhood:
+          // results of inner nodes are reused by all the neighbours!
+          // Also: remember that foldhood.aggregate.nbr is to be ignored
+          val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
+            mux(!nbrDist.isFinite){ 
+              env.put(s"trustParams_${nbr(mid())}", s"NOT FINITE: $nbrDist")
+              Double.PositiveInfinity 
+            }{
+              val nbrId = nbr{mid()}
+              val (aRec: Double, bRec: Double) = nbrTrustProfiles
+                .mapValues(_.get(nbrId).map(p => (p.params.a, p.params.b)).getOrElse(0.0,0.0))
+                .foldLeft((0.0, 0.0))((acc, value) => {
+                  // i = mid, j = nbrId ; a_j and b_j calculated from all nbrs k != i,j
+                  val TrustParams(a_ik, b_ik) = localTrustProfiles.get(value._1).map(_.params).getOrElse(TrustParams(0.0,0.0))
+                  val a_kj = value._2._1
+                  val b_kj = value._2._2
+                  val denom = (b_ik+2)*(a_kj+b_kj+2)+2*a_ik
+                  val a_j = acc._1 + 2*a_ik*a_kj/denom
+                  val b_j = acc._2 + 2*a_ik*b_kj/denom
+                  (a_j, b_j)
+                })
+              val localParams = localTrustProfiles.get(nbrId).map(_.params).getOrElse(TrustParams(0.0,0.0))
+              var a = localParams.a + aRec
+              var b = localParams.b + bRec
+              val trustValue = beta(a,b)
+              val isTrusted = trustable(trustValue) 
+              if(!isTrusted) { distrustedNbrs = nbrId :: distrustedNbrs}
+              val newg = mux(isTrusted){ nbr{dist} + nbrRange }{ Double.PositiveInfinity } // dist/Math.pow(trustValue,4) 
+              newg
+            }
+          }
+          
+          env.put("distrustedNbrs", distrustedNbrs)
+          val distrustedBy = foldhoodPlus(Map[ID,List[ID]]())(_++_)(Map(nbr{mid()->distrustedNbrs})).filter(_._2.contains(mid())).keySet
+
+          val distrusted = !distrustedBy.isEmpty
+          env.put("distrusted-recomm", distrusted)
+          env.put("distrustedBy-recomm", distrustedBy)
+          res.orIf(_==Double.PositiveInfinity){dist}
+        }{
+          minHood( nbr{dist} + nbrRange )
+        }
+      }
+    } 
   }
   
   /**
    * Returns a score based on a beta distribution.
    */
-  def calculateTrust(field: => Double, xmean: Double, s: Double): Double = {        
+  def calculateTrustParams(field: => Double, xmean: Double, s: Double): TrustParams = {        
     val (nbrId, nbrVal) = nbr{ (mid(), field) }
     val deviation = Math.abs(nbrVal - xmean)
     val maxError = Math.max(s, errorLB)
@@ -143,7 +229,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     
     val (a,b) = obss.foldRight((1.0,0.0))((t,u) => (t._1+u._1, t._2+u._2))
     env.put(s"trust_params(a,b)_${nbr(mid())}_", (a,b))
-    beta(a,b)
+    TrustParams(a, b)
   }
   
   def beta(a: Double, b: Double) = (a+1)/(a+b+2)

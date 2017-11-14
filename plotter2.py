@@ -171,10 +171,10 @@ do_aggr_plotting = True
 
 # TRUSTED AC
 the_plots_labels = ["Time",
- "err-fakes", "err-trust", "n-errs-fakes", "n-err-trust", "distrusted"]
-the_plots_formats = [[0,1,2]] # [[0,1,2],[0,3,4],[0,5]]
-default_colors = ["black","blue", "red"]
-the_plots_colors = [default_colors] * 3
+ "err-fakes", "err-trust", "err-trust-recomm", "n-err-fakes", "n-err-trust", "n-err-trust-recomm", "distrusted", "distrusted-recomm"]
+the_plots_formats = [[0,1,2,3],[0,4,5,6]] # [0,7,8]
+default_colors = ["black","blue", "red","darkgreen"]
+the_plots_colors = [default_colors] * 4
 nplots = 6
 
 limitPlotY = 2000 # float("inf")

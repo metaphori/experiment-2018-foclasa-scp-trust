@@ -1,7 +1,7 @@
 variables:
   random: &random
     min: 0
-    max: 5
+    max: 3
     step: 1
     default: 0
   commRadius: &commRadius
@@ -14,7 +14,7 @@ variables:
   startTrustAlgorithmAt: &startTrustAlgorithmAt
     min: 0
     max: 32
-    step: 30.5
+    step: 30
     default: 0
   observationWindowSize: &observationWindowSize
     min: 5
@@ -57,11 +57,18 @@ export:
   - molecule: error-trust
     aggregators: [sum]
     value-filter: ONLYFINITE
+  - molecule: error-trust-recomm
+    aggregators: [sum]
+    value-filter: ONLYFINITE    
   - molecule: n-error-fakes
     aggregators: [sum]
   - molecule: n-error-trust
     aggregators: [sum]
+  - molecule: n-error-trust-recomm
+    aggregators: [sum]
   - molecule: distrusted
+    aggregators: [sum]
+  - molecule: distrusted-recomm
     aggregators: [sum]
 
 seeds:

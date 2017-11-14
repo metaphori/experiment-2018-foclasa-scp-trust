@@ -101,6 +101,17 @@ However, we still lack a deep understanding of how to select the right values fo
 
 NEXT STEP: recommendations
 
+*******************
+
+--------------------------------------------------- Experiment 6: 2017-11-06
+
+Goal: compare error of trust algorithm with and without using recommendations
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random distanceFromSource startTrustAlgorithmAt  -e data/20171114foclasa1 -t 200 -p 2 -v &> exec.txt &
+
+Results:
+  - PRO: TrustWithRecommendations reduces the error (wrt Trust) in the case of fakes near the source (distanceFromSource=5)
+  - CON: TrustWithRecommendations, wrt Trust, takes longer (when startTrustAt=0) or start with a higher peak of error (when startTrustAt=30) to fix the error in case of fakes far from the source (distanceFromSource=5 or 9)
 
 
 
