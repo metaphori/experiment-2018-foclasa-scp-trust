@@ -103,15 +103,93 @@ NEXT STEP: recommendations
 
 *******************
 
---------------------------------------------------- Experiment 6: 2017-11-06
+--------------------------------------------------- Experiment 7: 2017-11-06
 
 Goal: compare error of trust algorithm with and without using recommendations
 
 java -Xmx5024m -cp "bin:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random distanceFromSource startTrustAlgorithmAt  -e data/20171114foclasa1 -t 200 -p 2 -v &> exec.txt &
 
+where
+  - random = from 0 to 3 with step 1
+  - startTrustAlgorithm = 0, 30
+  - distanceFromSource = 5, 9, 13
+
 Results:
   - PRO: TrustWithRecommendations reduces the error (wrt Trust) in the case of fakes near the source (distanceFromSource=5)
   - CON: TrustWithRecommendations, wrt Trust, takes longer (when startTrustAt=0) or start with a higher peak of error (when startTrustAt=30) to fix the error in case of fakes far from the source (distanceFromSource=5 or 9)
+
+--------------------------------------------------- Experiment 8: 2017-11-14
+
+Goal: better explore the behaviour of the trust algorithm with and without recommendations
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random startTrustAlgorithmAt  trustThreshold -e data/20171114foclasa2 -t 250 -p 2 -v &> exec.txt &
+
+where
+  - fakes are at medium distance from source
+  - trustThreshold = from 0.55 to 0.85 with step 0.05
+PART2
+  - trustThreshold = 0.82; 0.85; 0.88; 0.91; 0.94;
+PART 3
+  - trustThreshold = 0.94; 0.96
+
+Results:
+  - Start=0 => For trustThreshold < 0.75, TrustWithRecommendations is a little bit worse than Trust
+               For trustThreshold >= 0.75, TrustWithRecommendations is better than Trust (often Trust diverges)
+               * Except for trustThreshold=0.94 where TrustWithRecommendations diverges (after decreasing under Fake for some time) 
+                 and Trust correctly minimizes the error (but, e.g., TrustWithRecommendations goes great for trustThreeshold=0.96>0.94...)
+               * For trustThreshold >= 0.75, Trust produces a high peak of error before decreasing
+               * For trustThreshold >= 0.80, TrustWithRecommendations produces a peak of error (lower wrt Trust) *before* the appearance of fakes,
+                 but is able to reduce the error (while Trust doesn't make it).
+               * The number of devices distrusted by at least one neighbour is always lower for TrustWithRecommendations (wrt Trust)
+    Start=30=> For low values of trustThreshold, they produce similar results; 
+               for high values of trustThreshold, TrustWithRecommendations goes slightly better 
+               * Except for trustThreshold>=0.94 where TrustWithRecommendations converges whereas Trust produces a very high error 
+               * After the apperance of fakes, but Trust and TrustWithRecommendations produce a peak of error slightly higher than Fake, 
+                 before reducing the error to negligible values.
+               * The number of devices distrusted by at least one neighbour is always lower for TrustWithRecommendations (wrt Trust)
+
+Test again for trustThreshold = 0.94; 0.96, changing random=0;2;4
+
+--------------------------------------------------- Experiment 9: 2017-11-15
+
+GOAL: better explore the behaviour of the trust algorithm with and without recommendations
+      by varying the errorLBfactor (=> errorLB = "$commRadius * $errorLBfactor")
+
+java -Xmx5024m -cp "bin:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random startTrustAlgorithmAt errorLBfactor distanceFromSource -e data/20171115foclasa2 -t 250 -p 3 -v &> exec.txt &
+
+where
+  - errorLBfactor = 0.5; 1.0; 1.5; 2.0; 2.5
+  - distanceFromSource = 5; 9; 13
+  - trustThreshold = 0.75
+
+Results:
+  - distanceFromSource = 5 => TrustWithRecomms better than Trust only for errorLBfactor=1.5; otherwise similar or worse (errorLBfactor=2.5)
+  * Both Trust and TrustWithRecomms diverge for errorLBfactor=0.5; converges to null error for values > 0.5 after a big initial peak of error 
+    but with some peaks of error for > 2.0 
+  
+  - distanceFromSource = 9 => TrustWithRecomms better than Trust only for errorLBfactor=1.0; otherwise similar 
+                              or worse (errorLBfactor>=2.0 and startTrust=30)
+  * Both Trust and TrustWithRecomms diverge for errorLBfactor=0.5; converges to null error for values > 0.5 after a big initial peak of error
+    but with some veryvery slight peaks of error for > 2.5 
+  
+  - distanceFromSource = 13 => TrustWithRecomms better than Trust only for errorLBfactor=1.0 in case startTrust=0; otherwise similar 
+                              or worse (errorLBfactor>=2.0 and startTrust=30)
+  * Both Trust and TrustWithRecomms diverge for errorLBfactor=0.5; converges to null error for values > 0.5 after a big initial peak of error
+    but with some veryvery slight peaks of error for > 2.5 
+  
+Interpretation:
+  - TrustWithRecomms seems to go better than Trust when trustStart=0; i.e., it seems to provide more reactivity once  
+    and slightly worse when trustStart=30 and imprecise values for trustThreshold or errorLBfactor
+  
+  
+  
+  
+  
+  
+  
+  
+
+
 
 
 
