@@ -1,13 +1,13 @@
 variables:
   random: &random
     min: 0
-    max: 3
-    step: 1
+    max: 70
+    step: 25
     default: 0
   commRadius: &commRadius
     min: 1.6
     max: 2.7
-    step: 1
+    step: 0.25
     default: 2.0
   turnIntoFakeAt: &turnIntoFakeAt
     formula: 18
@@ -16,20 +16,29 @@ variables:
     max: 32
     step: 30
     default: 0
+  minObservations: &minObservations
+    formula: 4
   observationWindowSize: &observationWindowSize
-    min: 5
-    max: 25
-    step: 10
+    min: 4
+    max: 15
+    step: 5
     default: 12
   trustThreshold: &trustThreshold
     min: 0.5
     step: 0.05
     max: 0.85
     default: 0.75
+  maxErrorFactorExp: &maxErrorFactorExp
+    min: 0
+    max: 16
+    step: 1
+    default: 8
+  maxErrorFactor: &maxErrorFactor
+    formula: "Math.pow(2,$maxErrorFactorExp)" 
   errorLBfactor: &errorLBfactor
-    min: 1.0
-    max: 2
-    step: 0.4
+    min: 0.5
+    max: 2.5
+    step: 0.5
     default: 1.5
   errorLB: &errorLB
     formula: "$commRadius * $errorLBfactor"
@@ -48,6 +57,10 @@ variables:
     formula: 0
   fakeAreaSize: &fakeAreaSize
     formula: 0.0
+  useTrust: &useTrust
+    formula: 1
+  useRecomm: &useRecomm
+    formula: 0
           
 export:
   - time
@@ -114,14 +127,22 @@ pools:
       concentration: *commRadius
     - molecule: startTrustAlgorithmAt
       concentration: *startTrustAlgorithmAt
+    - molecule: minObservations
+      concentration: *minObservations
     - molecule: observationWindowSize
       concentration: *observationWindowSize
     - molecule: trustThreshold
       concentration: *trustThreshold
     - molecule: errorLB
       concentration: *errorLB
+    - molecule: maxErrorFactor
+      concentration: *maxErrorFactor
     - molecule: fakeAreaSize
       concentration: *fakeAreaSize
+    - molecule: useRecomm
+      concentration: *useRecomm
+    - molecule: useTrust
+      concentration: *useTrust
 
 positions:
   type: Continuous2DEuclidean
