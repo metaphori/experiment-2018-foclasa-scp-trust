@@ -181,16 +181,46 @@ Interpretation:
   - TrustWithRecomms seems to go better than Trust when trustStart=0; i.e., it seems to provide more reactivity once  
     and slightly worse when trustStart=30 and imprecise values for trustThreshold or errorLBfactor
   
-  
-  
-  
-  
-  
-  
-  
+--------------------------------------------------- Experiment 9: 2017-11-15
 
+GOAL: since I suspect that TrustWithRecomms supports reactivity when precise trust thresholds are used;
+      I try to see how it relates to plain Trust by using different window sizes.
+  
+java -Xmx5024m -cp "bin:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random distanceFromSource startTrustAlgorithmAt observationWindowSize -e data/20171115foclasa3 -t 250 -p 3 -v &> exec.txt &  
 
+where
+  - observationWindowSize = 3; 8; 13
 
+Results:
+  - distanceFromSource = 5 => For obsWindowSize=3, TrustWithRecomms has a peak of error in the middle, but then converges
+                              For obsWindowSize>3, TrustWithRecomms goes slightly better than Trust (both for startTrust=0 and =30)
+  
+  - distanceFromSource = 9 => For obsWindowSize=3 and =8, TrustWithRecomms has peaks of error, but then converges
+                              For obsWindowSize=13, TrustWithRecomms and Trust are basically equal, nulling the error
+  
+  - distanceFromSource = 13 => For obsWindowSize=3, TrustWithRecomms has many peaks of error, but then converges
+                               For obsWindowSize=8 and =13, TrustWithRecomms and Trust are basically equal, nulling the error
+  * At distanceFromSource = 13 with obsWindowSize=8 and =13,
+    we have, for both TrustWithRecomms and Trust, an initial peak of error before nulling the error only when startTrust=30
+  !!! => i.e., in case startTrust=0 (i.e., if the trust algo works from before the appearance of fakes), 
+         if obsWindowSize is large enough, we have a negligible initial peak of error!!!
+  
+Results:
+  * TrustWithRecomms goes worse than Trust if obsWindowSize is very small (e.g., 3 values)
+  
+--------------------------------------------------- Experiment 10: 2017-11-15
 
+java -Xmx5024m -cp "bin:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist   -y src/main/yaml/gradient.yml   -b -var random distanceFromSource startTrustAlgorithmAt commRadius -e data/20171115foclasa4 -t 250 -p 3 -v &> exec.txt &
 
+where
+  - commRadius = 1.6, 1.85, 2.1, 2.35, 2.60    (default was 2.0)
 
+Results:
+  distFromSource=5 => TrustWithRecomms goes slightly better than Trust (esp. when commRadius<2.10, where they are unable to null the error);
+                      in case startTrust=0, before improving a little over Trust, TrustWithRecomms has higher initial peak of error
+  
+  distFromSource=9 => TrustWithRecomms has larger initial peak of error wrt Trust for commRadius <= 2.10 (but only when startTrust=0)
+                      After the initial error, it improves over Trust very very little
+  
+  distFromSource=13 => TrustWithRecomms improves very very little over Trust, 
+                       but has higher initial peak of error for commRadius >= 2.35 (but only for startTrust=0)
