@@ -169,13 +169,22 @@ do_aggr_plotting = True
 #t_step = (t_end-t_start)/buckets
 #ts = [x*t_step+t_step/2 for x in range(0,buckets)]
 
-# TRUSTED AC
+# TRUSTED AC: trust algorithm with and w/o recommendations: error and num of nodes distrusted
 the_plots_labels = ["Time",
  "err-fakes", "err-trust", "err-recomm", "n-err-fakes", "n-err-trust", "n-err-recomm", "distrusted", "distrusted-recomm"]
-the_plots_formats = [[0,1,2,3]]# ,[0,4,5,6],[0,7,8]]
+the_plots_formats = [[0,1,2]]# ,[0,4,5,6],[0,7,8]]
 default_colors = ["black","blue", "red","darkgreen"]
 the_plots_colors = [default_colors] * 4
-nplots = 6
+
+# Study of S values (mean square deviation)
+#the_plots_labels = ["Time",
+# "s_min_nbr_fake","s_max_nbr_fake","s_avg_nbr_fake",
+# "s_min_near_fake","s_max_near_fake","s_avg_near_fake",
+# "s_min_far_fake","s_max_far_fake","s_avg_far_fake"  ]
+#the_plots_formats = [[0,1,4,7],[0,2,5,8],[0,3,6,9]]# ,[0,4,5,6],[0,7,8]]
+#default_colors = ["black","blue","red","darkgreen"]
+#the_plots_colors = [default_colors] * 4
+#sampling = True
 
 limitPlotY = 2000 # float("inf")
 
@@ -222,6 +231,9 @@ if sampling:
   merged_contents = merge_samples(contents, sconfigs)
   for title,content in merged_contents.items():
     plot(title,content)
+else:
+    for title,content in contents.items(): plot(title,content)
+  
 
 if bucketize:
   contents = do_bucketize(contents)

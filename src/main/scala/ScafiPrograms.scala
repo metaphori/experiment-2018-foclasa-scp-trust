@@ -98,7 +98,13 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       val sumSqDev = sumHood(mux(nbrDist.isFinite){ Math.pow(dist - xmean, 2) } { 0.0 })
       val s = Math.sqrt(sumSqDev / n)
       //env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
-         
+      
+      val fakeNbr = anyHood{ nbr(fake) }
+      val nearFake = anyHood { nbr(fakeNbr) }
+      env.put("s_value_nbr_fake", if(fakeNbr) s else Double.NaN)
+      env.put("s_value_near_fake", if(nearFake) s else Double.NaN)
+      env.put("s_value_far_fake", if(!nearFake) s else Double.NaN)
+      
       mux(source) { 0.0 } {
         branch(currTime > startAt){
           var distrustedNbrs = List[ID]()
