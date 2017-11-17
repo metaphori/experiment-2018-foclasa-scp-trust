@@ -109,7 +109,6 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
         branch(currTime > startAt){
           var distrustedNbrs = List[ID]()
           val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
-            // TODO: also 'distrusted' nodes may distrust other nodes; may we deal with it?
             val trustParams = calculateTrustParams(dist, xmean, s)
             val trustValue = beta(trustParams.a, trustParams.b)
             val isTrusted = if(trustParams.numObservations >= minObservations) trustable(trustValue) else true
@@ -119,17 +118,9 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
             //env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "??? " + isTrusted)
             newg
           }
-          // TODO: we may keep the id of the device that provided the minimum value
-          //       plus a backup values (e.g., current one), 
-          //       so that if that very device will be distrusted in the near future, 
-          //       we can rollback.
+
           env.put("distrustedNbrs", distrustedNbrs)
           val distrustedBy = foldhoodPlus(Map[ID,List[ID]]())(_++_)(Map(nbr{mid()->distrustedNbrs})).filter(_._2.contains(mid())).keySet
-          
-          // TODO: 'distrusted' only if it comes from at least one 'non-distrusted' node.
-          //val distrusted = !distrustedBy.isEmpty && 
-          //  anyHood(distrustedBy.contains(nbr{mid()}) && 
-          //      (nbr{distrustedBy}.isEmpty || nbr{distrustedBy}.size==1 && nbr{distrustedBy}==mid()))
           
           val distrusted = !distrustedBy.isEmpty
           env.put("distrusted", distrusted)
@@ -159,7 +150,6 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
           // as it is impl by now, on top of foldhood, 
           // the expression is run for the 'self' as well!
           val localTrustProfiles = foldhoodPlus(Map[ID,TrustProfile]())(_++_){
-            // TODO: also 'distrusted' nodes may distrust other nodes; may we deal with it?
             val nbrId = nbr{mid()}
             val trustParams = calculateTrustParams(dist, xmean, s)
             Map(nbrId -> TrustProfile(nbrId, trustParams, nbr{dist}+nbrRange))
@@ -196,7 +186,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
               val trustValue = beta(a,b)
               val isTrusted = if(localParams.numObservations >= minObservations) trustable(trustValue) else true
               if(!isTrusted) { distrustedNbrs = nbrId :: distrustedNbrs}
-              val newg = mux(isTrusted){ nbr{dist} + nbrRange }{ Double.PositiveInfinity } // dist/Math.pow(trustValue,4) 
+              val newg = mux(isTrusted){ nbr{dist} + nbrRange }{ Double.PositiveInfinity }
               newg
             }
           }
@@ -231,7 +221,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val m = rep(MutableField[AlfaBetaHistory]()){ m => m }
     
     val history = m.getOrElse(nbrId, List())
-    env.put(s"trust_LASTcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ($s*$maxErrorFactor) ===> ${deviation > maxError}")
+    //env.put(s"trust_LASTcheck_${nbrId}__", s"|$nbrVal - $xmean| = $deviation > ${maxError} ($s*$maxErrorFactor) ===> ${deviation > maxError}")
     val obsEval = if(nbrVal.isFinite && s.isFinite){
       if(deviation > maxError) (0.0, 1.0) else (1.0, 0.0)
     } else {
@@ -243,7 +233,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val obss = m.getOrElse(nbrId, List())
     
     val (a,b) = obss.foldRight((0.0,0.0))((t,u) => (t._1+u._1, t._2+u._2))
-    env.put(s"trust_params(a,b)_${nbr(mid())}_", (a,b,obss.size))
+    //env.put(s"trust_params(a,b)_${nbr(mid())}_", (a,b,obss.size))
     TrustParams(a, b, obss.size)
   }
   
