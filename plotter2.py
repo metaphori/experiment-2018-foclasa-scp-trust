@@ -141,6 +141,7 @@ def plot(config,content):
       plt.plot(content[pformat[0]], content[pformat[k]], color=the_plots_colors[nf][k], label=the_plots_labels[pformat[k]])
       maxy = max(maxy, np.nanmax(content[pformat[k]]))
     maxy = min(maxy, limitPlotY)
+    if forceLimitPlotY: maxy = forceLimitPlotY
     axes = plt.gca()
     axes.set_ylim(ymax = maxy)  
     plt.legend(loc='upper left', bbox_to_anchor=(0.0, 1.1), )
@@ -161,6 +162,7 @@ pp = pprint.PrettyPrinter(indent=4) # for logging purposes
 sampling = True  # tells if there is a 'random' dimension for sampling
 bucketize = False # tells if there is a 'time' dimension to be split into buckets
 do_aggr_plotting = True
+forceLimitPlotY = None
 #sample_dim = 0
 #nbuckets = 100
 #t_start = 0
