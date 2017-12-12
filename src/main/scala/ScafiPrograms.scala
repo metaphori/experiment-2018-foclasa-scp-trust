@@ -8,109 +8,39 @@ trait ScafiAlchemistSupport { self: AggregateProgram =>
   def env = sense[NodeManager]("manager")
 }
 
-class TrustMechanism(val p: AggregateProgram with Environment with MyLib) {
-  import p._
-  case class BulkMetrics(s: Double, xmean: Double)
-  case class EvalResults(newValue: Double, trusted: Boolean)
-  /**
-   * a: represent a positive observation
-   * b: represent a negative observation
-   */
-  case class TrustParams(a: Double, b: Double, numObservations: Int)
-  case class TrustProfile(nbrId: ID, params: TrustParams, value: Double)
-  
-  private var distrustedNbrs = Set[ID]()
-  def distrustedNeighbours = distrustedNbrs
-  
-  def isActive = {
-    useTrust && currTime > startTrustAlgorithmAt
-  }
-  
-  def bulkMetrics(distance: Double): BulkMetrics = {
-    val fake = isInFakeArea
-    val dist = if (!fake) distance else fakeValue
-    def nbrDist = nbr { dist }
-    val n = countHood(nbrDist.isFinite)
-    val sumValues = sumHood(mux(nbrDist.isFinite) { nbrDist } { 0.0 })
-    val xmean = sumValues / n
-    val sumSqDev = sumHood(mux(nbrDist.isFinite) { Math.pow(dist - xmean, 2) } { 0.0 })
-    val s = Math.sqrt(sumSqDev / n)
-    //env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
+trait TrustMechanism {
+  type Metrics
+  case class EvalResults(newValue: Double, trusted: Boolean) 
+  def metrics(value: Double): Metrics
+  def eval(metrics: Metrics, whenTrusted: Double, whenDistrusted: Double): EvalResults
+}
 
-    val fakeNbr = anyHood { nbr(fake) }
-    val nearFake = anyHood { nbr(fakeNbr) }
-    env.put("s_value_nbr_fake", if (fakeNbr) s else Double.NaN)
-    env.put("s_value_near_fake", if (nearFake) s else Double.NaN)
-    env.put("s_value_far_fake", if (!nearFake) s else Double.NaN)
+abstract class BasicTrustMechanism(val p: AggregateProgram with Environment with MyLib) extends TrustMechanism {
+  import p._
+  import excludingSelf._
+  case class BulkMetrics(s: Double, xmean: Double)
+  case class TrustParams(a: Double, b: Double, numObservations: Int)
+  case class TrustProfile(nbrId: ID, params: TrustParams)
+
+  def bulkMetrics(field: Double): BulkMetrics = {
+    val fake = isInFakeArea
+    val dist = if (!fake) field else fakeValue
+    def nbrVal = nbr { field }
+    val n = countHood(nbrVal.isFinite)
+    val sumValues = sumHood(mux(nbrVal.isFinite) { nbrVal } { 0.0 })
+    val xmean = sumValues / n
+    val sumSqDev = sumHood(mux(nbrVal.isFinite) { Math.pow(dist - xmean, 2) } { 0.0 })
+    val s = Math.sqrt(sumSqDev / n)
     
     BulkMetrics(s, xmean)
-  }
-
-  def nbrTrustProfiles(field: Double, metrics: BulkMetrics): Map[ID, Map[ID, TrustProfile]] = {
-    val localTrustProfiles: Map[ID, TrustProfile] = mapHood {
-      val (nbrId, nbrVal) = nbr { (mid(), field) }
-      val trustParams = calculateTrustParams(nbrVal, metrics.xmean, metrics.s)
-      TrustProfile(nbrId, trustParams, nbrVal + nbrRange)
-    }
-
-    mapHood{ nbr(mid -> localTrustProfiles) }
-  }
-  
-  def eval(metrics: BulkMetrics, dist: Double, whenTrusted: Double, whenDistrusted: Double): EvalResults = {
-    // TODO: also 'distrusted' nodes may distrust other nodes; may we deal with it?
-    val trustParams = calculateTrustParams(dist, metrics.xmean, metrics.s)
-    val trustValue = beta(trustParams.a, trustParams.b)
-    val isTrusted = if (trustParams.numObservations >= minObservations) trustable(trustValue) else true
-    val nbrId = nbr { mid() }
-    if (!isTrusted) { distrustedNbrs += nbrId }
-    val newg = mux(isTrusted) { whenTrusted } { whenDistrusted }
-    //env.put(s"trust_${nbr(mid())}__", trustValue + " >= " + trustThreshold + "??? " + isTrusted)
-    EvalResults(newg, isTrusted)
-  }
-  
-  def evalRecomms(metrics: BulkMetrics, nbrDist: Double, whenTrusted: Double, whenDistrusted: Double, nbrTrustProfiles: Map[ID,Map[ID,TrustProfile]]): EvalResults = {
-    def localTrustProfiles = nbrTrustProfiles(mid)
-    val nbrId = nbr { mid() }
-    val (aRec: Double, bRec: Double) = nbrTrustProfiles
-      .mapValues(_.get(nbrId).map(p => (p.params.a, p.params.b)).getOrElse(0.0, 0.0))
-      .foldLeft((0.0, 0.0))((acc, value) => {
-        // i = mid, j = nbrId ; a_j and b_j calculated from all nbrs k != i,j
-        val TrustParams(a_ik, b_ik, nObs) = localTrustProfiles.get(value._1).map(_.params).getOrElse(TrustParams(0.0, 0.0, 0))
-        val (a_kj, b_kj) = (value._2._1, value._2._2)
-        val denom = (b_ik + 2) * (a_kj + b_kj + 2) + 2 * a_ik
-        (acc._1 + 2 * a_ik * a_kj / denom, acc._2 + 2 * a_ik * b_kj / denom)
-      })
-    val localParams = localTrustProfiles.get(nbrId).map(_.params).getOrElse(TrustParams(0.0, 0.0, 0))
-    val (a, b) = (localParams.a + aRec, localParams.b + bRec)
-    val trustValue = beta(a, b)
-    val isTrusted = if (localParams.numObservations >= minObservations) trustable(trustValue) else true
-    val newg = mux(isTrusted) { whenTrusted } { whenDistrusted }
-    EvalResults(newg, isTrusted)
-  }
-  
-  def postEval() = {
-    // TODO: we may keep the id of the device that provided the minimum value
-    //       plus a backup values (e.g., current one), 
-    //       so that if that very device will be distrusted in the near future, 
-    //       we can rollback.
-    env.put("distrustedNbrs", distrustedNbrs)
-    val distrustedBy = foldhoodPlus(Map[ID, Set[ID]]())(_ ++ _)(Map(nbr { mid() -> distrustedNbrs })).filter(_._2.contains(mid())).keySet
-
-    // TODO: 'distrusted' only if it comes from at least one 'non-distrusted' node.
-    //val distrusted = !distrustedBy.isEmpty && 
-    //  anyHood(distrustedBy.contains(nbr{mid()}) && 
-    //      (nbr{distrustedBy}.isEmpty || nbr{distrustedBy}.size==1 && nbr{distrustedBy}==mid()))
-
-    val distrusted = !distrustedBy.isEmpty
-    env.put("distrusted", distrusted)
-    env.put("distrustedBy", distrustedBy)    
   }
   
   /**
    * Returns a score based on a beta distribution.
    */
-  def calculateTrustParams(field: Double, xmean: Double, s: Double): TrustParams = {        
-    val (nbrId, nbrVal) = (nbr{ mid() }, field)
+  def calculateTrustProfile(field: Double, bmetrics: BulkMetrics): TrustProfile = {        
+    val BulkMetrics(s: Double, xmean: Double) = bmetrics
+    val (nbrId, nbrVal) = nbr{ (mid(), field) }
     val deviation = Math.abs(nbrVal - xmean)
     val maxError = Math.max(s, errorLB)
     
@@ -135,12 +65,68 @@ class TrustMechanism(val p: AggregateProgram with Environment with MyLib) {
     
     val (a,b) = obss.foldRight((0.0,0.0))((t,u) => (t._1+u._1, t._2+u._2))
     env.put(s"trust_params(a,b)_${nbr(mid())}_", (a,b,obss.size))
-    TrustParams(a, b, obss.size)
+    TrustProfile(nbrId, TrustParams(a, b, obss.size))
   }
+  
+  override def eval(tmetrics: Metrics, whenTrusted: Double, whenDistrusted: Double): EvalResults = {
+    val TrustParams(a, b, numObservations) = calculateTrustParams(tmetrics)
+    val trustValue = beta(a, b)
+    val isTrusted = if (numObservations >= minObservations) trustable(trustValue) else true
+    val newg = mux(isTrusted) { whenTrusted } { whenDistrusted }
+    EvalResults(newg, isTrusted)
+  }
+  
+  def calculateTrustParams(m: Metrics): TrustParams
   
   def beta(a: Double, b: Double) = (a+1)/(a+b+2)
   
-  def trustable(trustValue: Double): Boolean = trustValue >= trustThreshold  
+  def trustable(trustValue: Double): Boolean = trustValue >= trustThreshold   
+
+  def isActive = useTrust && currTime > startTrustAlgorithmAt
+}
+
+class TrustWithRecomms(p: AggregateProgram with Environment with MyLib) extends BasicTrustMechanism(p) { import p._
+  import includingSelf._
+  override type Metrics = RecommMetrics
+  
+  case class RecommMetrics(bmetrics: BulkMetrics, nbrTrustProfiles: Map[ID,Map[ID,TrustProfile]])
+  
+  override def metrics(field: Double): RecommMetrics = {
+    val bmetrics = bulkMetrics(field)
+    
+    val localTrustProfiles: Map[ID, TrustProfile] = mapHood { calculateTrustProfile(field, bmetrics) }
+    
+    RecommMetrics(bmetrics, mapHood{ nbr(localTrustProfiles) })
+  }
+
+  override def calculateTrustParams(m: RecommMetrics): TrustParams = {
+    def localTrustProfiles = m.nbrTrustProfiles(mid)
+    val nbrId = nbr { mid() }
+    val (aRec: Double, bRec: Double) = m.nbrTrustProfiles
+      .mapValues(_.get(nbrId).map(p => (p.params.a, p.params.b)).getOrElse(0.0, 0.0))
+      .foldLeft((0.0, 0.0))((acc, value) => {
+        // i = mid, j = nbrId ; a_j and b_j calculated from all nbrs k != i,j
+        val TrustParams(a_ik, b_ik, _) = localTrustProfiles.get(value._1).map(_.params).getOrElse(TrustParams(0.0, 0.0, 0))
+        val (a_kj, b_kj) = (value._2._1, value._2._2)
+        val denom = (b_ik + 2) * (a_kj + b_kj + 2) + 2 * a_ik
+        (acc._1 + 2 * a_ik * a_kj / denom, acc._2 + 2 * a_ik * b_kj / denom)
+      })
+    val localParams = localTrustProfiles.get(nbrId).map(_.params).getOrElse(TrustParams(0.0, 0.0, 0))
+    TrustParams(localParams.a + aRec, localParams.b + bRec, localTrustProfiles.size)
+  }
+}
+
+class PlainTrust(p: AggregateProgram with Environment with MyLib) extends BasicTrustMechanism(p) { import p._
+  override type Metrics = TrustMetrics
+  
+  case class TrustMetrics(bmetrics: BulkMetrics, trustProfiles: Map[ID,TrustProfile])
+  
+  override def calculateTrustParams(m: TrustMetrics): TrustParams = m.trustProfiles(nbr{mid}).params
+  
+  override def metrics(value: Double): TrustMetrics = {
+    val bmetrics = bulkMetrics(value)
+    TrustMetrics(bmetrics, includingSelf.mapHood{ calculateTrustProfile(value, bmetrics) } )
+  }
 }
 
 trait Environment extends ScafiAlchemistSupport { self: AggregateProgram with MyLib =>
@@ -180,6 +166,7 @@ trait Environment extends ScafiAlchemistSupport { self: AggregateProgram with My
 }
 
 class gradient extends AggregateProgram with Environment with MyLib {
+  import includingSelf._
   
   // Keeps a pair (a,b) for each node that is used to calculate a trust score
   var map = Map[ID,(Double,Double)]()
@@ -203,14 +190,14 @@ class gradient extends AggregateProgram with Environment with MyLib {
     env.put[Boolean]("n-error-fakes", Math.abs(dist-distWithFakes) > (5*dist/100))
     
     branch(useTrust){
-    val distWithTrust = gradientWithTrust2(isSrc, new TrustMechanism(this)) //gradientWithTrust(isSrc, fake)
+    val distWithTrust = gradientWithTrust(isSrc, new PlainTrust(this)) //gradientWithTrust(isSrc, fake)
     env.put[Double]("gradientWithTrust", distWithTrust)
     env.put[Double]("error-trust", Math.abs(dist-distWithTrust))
     env.put[Boolean]("n-error-trust", Math.abs(dist-distWithTrust) > (5*dist/100))
     }{}
     
     branch(useRecommendations){
-    val distWithTrustRecomm = gradientWithRecomms(isSrc, new TrustMechanism(this))
+    val distWithTrustRecomm = gradientWithTrust(isSrc, new TrustWithRecomms(this))
     env.put[Double]("gradientWithTrustPlusRecs", distWithTrustRecomm)
     env.put[Double]("error-trust-recomm", Math.abs(dist-distWithTrustRecomm))
     env.put[Boolean]("n-error-trust-recomm", Math.abs(dist-distWithTrustRecomm) > (5*dist/100))
@@ -227,44 +214,40 @@ class gradient extends AggregateProgram with Environment with MyLib {
       }
     }
   
-  def gradientWithTrust2(source: Boolean, trust: TrustMechanism): Double =
+  def gradientWithTrust(source: Boolean, trust: BasicTrustMechanism): Double =
     rep(Double.PositiveInfinity){
       distance => mux(source) { 0.0 } {
         val dist = if(!fake) distance else fakeValue
-        val metrics = trust.bulkMetrics(dist)
+        val metrics = trust.metrics(dist)
         branch(trust.isActive){
-          val res = foldhoodPlus(Double.PositiveInfinity)(Math.min)(
-            trust.eval(metrics, nbr { dist }, 
+          foldhoodPlus(Double.PositiveInfinity)(Math.min)(
+            trust.eval(metrics, 
                 whenTrusted = nbr { dist } + nbrRange, 
                 whenDistrusted = Double.PositiveInfinity).newValue
           )
-          trust.postEval()
-          res
         }{
           minHood(nbr{dist} + nbrRange)
         }
       }
-    }  
+    }
   
+  /*
   def gradientWithRecomms(source: Boolean, trust: TrustMechanism): Double = {
     rep(Double.PositiveInfinity){ distance => 
       mux(source) { 0.0 } {
         val dist = if(!fake) distance else fakeValue
-        val metrics = trust.bulkMetrics(dist)
-         
-          val nbrTrustProfiles: Map[ID,Map[ID,trust.TrustProfile]] = trust.nbrTrustProfiles(dist, metrics)
-          
+        val metrics = trust.metrics(dist)
 
           val res = foldhoodPlus(Double.PositiveInfinity)(Math.min){
-            trust.evalRecomms(metrics, nbr { dist }, 
+            trust.evalRecomms(metrics,
                 whenTrusted = nbr { dist } + nbrRange, 
-                whenDistrusted = Double.PositiveInfinity,
-                nbrTrustProfiles).newValue
+                whenDistrusted = Double.PositiveInfinity
+            ).newValue
           }
         res
       }
     } 
-  }  
+  } */
   
   def gradientWithTrust(source: Boolean, fake: Boolean, startAt: Double = startTrustAlgorithmAt): Double = {
     rep(Double.PositiveInfinity){ distance => 
@@ -438,22 +421,36 @@ class gradient extends AggregateProgram with Environment with MyLib {
   def trustable(trustValue: Double): Boolean = trustValue >= trustThreshold    
 }
 
-trait MyLib { self: AggregateProgram with Environment =>  
-  case class FoldingOptions(includeSelf: Boolean = false, onlyFinite: Boolean = true)
-  def minHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(Double.PositiveInfinity)(Math.min)(field)
-  def maxHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(Double.NegativeInfinity)(Math.max)(field)
-  def sumHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
-  def anyHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Boolean](fops.includeSelf)(false)(_||_)(field)
-  def countHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Int](fops.includeSelf)(0)(_+_)(if(field) 1 else 0)
-  def mapHood[T](field: => T)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Map[ID,T]](fops.includeSelf)(Map[ID,T]())(_++_)(Map(nbr{mid} -> field))
-  def fold[T](includeSelf: Boolean) = 
-    branch(includeSelf){ (foldhood[T] _) }{ (foldhoodPlus[T] _) }
+trait FieldUtils  { self: AggregateProgram with MyLib with Environment => 
+  case class FoldingOptions(onlyFinite: Boolean = true)
+ 
+  trait FieldUtilsSchema {
+    def minHood(field: => Double) = 
+      (fold[Double])(Double.PositiveInfinity)(Math.min)(field)
+    def maxHood(field: => Double) = 
+      (fold[Double])(Double.NegativeInfinity)(Math.max)(field)
+    def sumHood(field: => Double) = 
+      (fold[Double])(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
+    def anyHood(field: => Boolean) = 
+      (fold[Boolean])(false)(_||_)(field)
+    def countHood(field: => Boolean) = 
+      (fold[Int])(0)(_+_)(if(field) 1 else 0)
+    def mapHood[T](field: => T): Map[ID,T] = 
+      (fold[Map[ID,T]])(Map[ID,T]())(_++_)(Map(nbr{mid} -> field))
+    def fold[T]: (T) => ((T, T) => T) => ( => T ) => T
+    val fops: FoldingOptions = FoldingOptions()
+  }
+  
+  lazy val includingSelf = new FieldUtilsSchema {
+    def fold[T]: (T) => ((T, T) => T) => ( => T ) => T = foldhood(_)
+  }
+  
+  lazy val excludingSelf = new FieldUtilsSchema {
+    def fold[T]: (T) => ((T, T) => T) => ( => T ) => T = foldhoodPlus(_)
+  }  
+}
+
+trait MyLib extends FieldUtils { self: AggregateProgram with Environment =>  
     
   def keepFor(time: Double, f: => Double): Double = rep[(Double,Double)]((currTime,f)){ case (lastTime,oldVal) =>
     mux(currTime-lastTime > time){ (currTime, f) } { (lastTime, oldVal) }

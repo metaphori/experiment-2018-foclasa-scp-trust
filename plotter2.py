@@ -172,7 +172,7 @@ do_aggr_plotting = True
 # TRUSTED AC: trust algorithm with and w/o recommendations: error and num of nodes distrusted
 the_plots_labels = ["Time",
  "err-fakes", "err-trust", "err-recomm", "n-err-fakes", "n-err-trust", "n-err-recomm", "distrusted", "distrusted-recomm"]
-the_plots_formats = [[0,1,2]]# ,[0,4,5,6],[0,7,8]]
+the_plots_formats = [[0,1,2,3]]# ,[0,4,5,6],[0,7,8]]
 default_colors = ["black","blue", "red","darkgreen"]
 the_plots_colors = [default_colors] * 4
 

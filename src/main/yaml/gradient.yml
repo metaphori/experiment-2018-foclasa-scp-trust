@@ -60,7 +60,7 @@ variables:
   useTrust: &useTrust
     formula: 1
   useRecomm: &useRecomm
-    formula: 0
+    formula: 1
           
 export:
   - time
