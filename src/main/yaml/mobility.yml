@@ -1,7 +1,7 @@
 variables:
   random: &random
     min: 0
-    max: 4
+    max: 2
     step: 1
     default: 0
   commRadius: &commRadius
@@ -22,12 +22,12 @@ variables:
     min: 4
     max: 15
     step: 5
-    default: 12
+    default: 20
   trustThreshold: &trustThreshold
-    min: 0.5
+    min: 0.80
     step: 0.05
-    max: 0.85
-    default: 0.8
+    max: 0.95
+    default: 0.85
   maxErrorFactorExp: &maxErrorFactorExp
     min: 0
     max: 16
@@ -39,7 +39,7 @@ variables:
     min: 0.5
     max: 2.5
     step: 0.5
-    default: 1.5
+    default: 2.5
   errorLB: &errorLB
     formula: "$commRadius * $errorLBfactor"
   distanceFromSource: &distanceFromSource
@@ -62,7 +62,7 @@ variables:
   useRecomm: &useRecomm
     formula: 1
   fakeSpeed: &fakeSpeed
-    min: 0.05
+    min: 0.0
     max: 1.0
     step: 0.05
     default: 1

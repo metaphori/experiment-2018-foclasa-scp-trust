@@ -1,33 +1,33 @@
 variables:
   random: &random
     min: 0
-    max: 10
+    max: 11
     step: 1
-    default: 7
+    default: 0
   commRadius: &commRadius
     min: 1.2
-    max: 2.9
+    max: 3.2
     step: 0.25
-    default: 2.2
+    default: 3.0
   turnIntoFakeAt: &turnIntoFakeAt
-    formula: 10
+    formula: 50
   startTrustAlgorithmAt: &startTrustAlgorithmAt
     min: 0
     max: 32
     step: 30
     default: 0
   minObservations: &minObservations
-    formula: 4
+    formula: 6
   observationWindowSize: &observationWindowSize
     min: 4
-    max: 15
+    max: 20
     step: 5
-    default: 12
+    default: 10
   trustThreshold: &trustThreshold
     min: 0.5
     step: 0.05
     max: 0.85
-    default: 0.75
+    default: 0.8
   maxErrorFactorExp: &maxErrorFactorExp
     min: 0
     max: 16
@@ -39,13 +39,9 @@ variables:
     min: 0.5
     max: 2.5
     step: 0.5
-    default: 1.5
+    default: 1.1
   errorLB: &errorLB
-    #formula: "$commRadius * $errorLBfactor"
-    min: 4
-    max: 6
-    step: 1.5
-    default: 4
+    formula: "$commRadius * $errorLBfactor"
   distanceFromSource: &distanceFromSource
     min: 5
     max: 15
@@ -168,7 +164,7 @@ positions:
 displacements:
   - in:
       type: Grid 
-      parameters: [0, 0, 30, 20, 1.5, 1.5, 0.2, 0.2]
+      parameters: [0, 0, 30, 20, 1.6, 1.6, 0.2, 0.2]
     programs: 
       - *program
     contents: *contents

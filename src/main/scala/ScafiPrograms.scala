@@ -20,10 +20,12 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   
   lazy val useRecommendations: Boolean = sense[Int]("useRecomm")==1
   lazy val useTrust: Boolean = sense[Int]("useTrust")==1
+  lazy val performAnalysis: Boolean = sense[Int]("performAnalysis")==1
   
   def isSrc: Boolean = sense[Int]("source")==1
   def isFake: Boolean = sense[Int]("fake")==1
   def isInFakeArea: Boolean = gradient(isFake)<=fakeAreaSize
+  lazy val willBeFake: Boolean = sense[Int]("willBeFake")==1
 
   def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
   def currTime: Double = sense[Time]("time").toDouble()
@@ -99,11 +101,17 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       val s = Math.sqrt(sumSqDev / n)
       //env.put("n_sum_mean_sumsq_s", (n, sumValues, xmean, sumSqDev, s))
       
-      val fakeNbr = anyHood{ nbr(fake) }
-      val nearFake = anyHood { nbr(fakeNbr) }
-      env.put("s_value_nbr_fake", if(fakeNbr) s else Double.NaN)
-      env.put("s_value_near_fake", if(nearFake) s else Double.NaN)
-      env.put("s_value_far_fake", if(!nearFake) s else Double.NaN)
+      branch(performAnalysis){
+        val fakeNbr = anyHood{ nbr(willBeFake) }
+        val nearFake = anyHood { nbr(fakeNbr) } && !fakeNbr
+        val nearNearFake = anyHood { nbr(nearFake) } && !nearFake
+        env.put("fake_nbr", fakeNbr)
+        env.put("fake_near", nearFake)
+        env.put("s_value_nbr_fake", if(fakeNbr) s else Double.NaN)
+        env.put("s_value_near_fake", if(nearFake && !fakeNbr) s else Double.NaN)
+        env.put("s_value_near_near_fake", if(nearNearFake && !nearFake) s else Double.NaN)
+        env.put("s_value_far_fake", if(!nearNearFake && !nearFake && !fakeNbr) s else Double.NaN)
+      }{}
       
       mux(source) { 0.0 } {
         branch(currTime > startAt){
@@ -151,6 +159,7 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
           // the expression is run for the 'self' as well!
           val localTrustProfiles = foldhoodPlus(Map[ID,TrustProfile]())(_++_){
             val nbrId = nbr{mid()}
+            merrdiff = 0.0
             val trustParams = calculateTrustParams(dist, xmean, s)
             Map(nbrId -> TrustProfile(nbrId, trustParams, nbr{dist}+nbrRange))
           }
@@ -205,6 +214,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     } 
   }
   
+  var merrdiff = 0.0
+  
   /**
    * Returns a score based on a beta distribution.
    */
@@ -212,6 +223,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
     val (nbrId, nbrVal) = nbr{ (mid(), field) }
     val deviation = Math.abs(nbrVal - xmean)
     val maxError = Math.max(s, errorLB)
+    merrdiff = merrdiff + (if(maxError > errorLB) 1.0 else 0.0)
+    env.put("merrdiff", merrdiff)
     
     type MutableField[T] = MMap[ID,T]
     def MutableField[T](): MutableField[T] = MMap[ID,T]()

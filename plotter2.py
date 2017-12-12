@@ -138,13 +138,14 @@ def plot(config,content):
     plt.xlabel(the_plots_labels[pformat[0]])
     maxy = float("-inf")
     for k in range(1,len(pformat)): # skip x-axis which is at pos 0
-      plt.plot(content[pformat[0]], content[pformat[k]], color=the_plots_colors[nf][k], label=the_plots_labels[pformat[k]])
+      plt.plot(content[pformat[0]], content[pformat[k]], color=the_plots_colors[nf][k], label=the_plots_labels[pformat[k]], linewidth=line_widths[nf][k])
       maxy = max(maxy, np.nanmax(content[pformat[k]]))
     maxy = min(maxy, limitPlotY)
     if forceLimitPlotY: maxy = forceLimitPlotY
     axes = plt.gca()
     axes.set_ylim(ymax = maxy)  
-    plt.legend(loc='upper left', bbox_to_anchor=(0.0, 1.1), )
+    if forceLimitPlotX: axes.set_xlim(xmax = forceLimitPlotX)  
+    plt.legend(loc='upper right')
     t = plt.title(title) 
     plt.subplots_adjust(top=.84) 
     savefn = outdir+basefn+"_"+parts_suffix+ "_" + "".join(map(str,pformat)) +".png"
@@ -163,6 +164,7 @@ sampling = True  # tells if there is a 'random' dimension for sampling
 bucketize = False # tells if there is a 'time' dimension to be split into buckets
 do_aggr_plotting = True
 forceLimitPlotY = None
+forceLimitPlotX = None
 #sample_dim = 0
 #nbuckets = 100
 #t_start = 0
@@ -170,25 +172,39 @@ forceLimitPlotY = None
 #ts = np.linspace(t_start, t_end, nbuckets)
 #t_step = (t_end-t_start)/buckets
 #ts = [x*t_step+t_step/2 for x in range(0,buckets)]
+fill_between = []
 
 # TRUSTED AC: trust algorithm with and w/o recommendations: error and num of nodes distrusted
 the_plots_labels = ["Time",
  "err-fakes", "err-trust", "err-recomm", "n-err-fakes", "n-err-trust", "n-err-recomm", "distrusted", "distrusted-recomm"]
-the_plots_formats = [[0,1,2]]# ,[0,4,5,6],[0,7,8]]
+the_plots_formats = [[0,1,2,3]]# ,[0,4,5,6],[0,7,8]]
 default_colors = ["black","blue", "red","darkgreen"]
 the_plots_colors = [default_colors] * 4
 
 # Study of S values (mean square deviation)
-#the_plots_labels = ["Time",
-# "s_min_nbr_fake","s_max_nbr_fake","s_avg_nbr_fake",
-# "s_min_near_fake","s_max_near_fake","s_avg_near_fake",
-# "s_min_far_fake","s_max_far_fake","s_avg_far_fake"  ]
-#the_plots_formats = [[0,1,4,7],[0,2,5,8],[0,3,6,9]]# ,[0,4,5,6],[0,7,8]]
-#default_colors = ["black","blue","red","darkgreen"]
-#the_plots_colors = [default_colors] * 4
-#sampling = True
+the_plots_labels = ["Time", "err-trust",
+ "s_min_nbr_fake","s_max_nbr_fake","s_avg_nbr_fake",
+ "s_min_near_fake","s_max_near_fake","s_avg_near_fake",
+ "s_min_nnear_fake","s_max_nnear_fake","s_avg_nnear_fake",
+ "s_min_far_fake","s_max_far_fake","s_avg_far_fake"  ]
+the_plots_formats = [[0,1,3,6,12]]
+#default_colors = ["black","blue","blue","red","red","darkgreen","darkgreen","gray","gray"]
+default_colors = ["black","black","blue","red","darkgreen","gray"]
+line_widths = [[1,6,1,1,1,1]] * 4
+the_plots_colors = [default_colors] * 1
+forceLimitPlotY = 22
 
+# CHANNEL
+#the_plots_labels = ["Time",
+# "err-fakes", "err-trust", "err-recomm"]
+#the_plots_formats = [[0,1,2,3]]
+#default_colors = ["black","red", "blue","darkgreen"]
+#the_plots_colors = [default_colors] * 4
+
+sampling = False
 limitPlotY = 2000 # float("inf")
+forceLimitPlotX = 250
+
 
 ###################################################################################
 ############################## Script preparation #################################
