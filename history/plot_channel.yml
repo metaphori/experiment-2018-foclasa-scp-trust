@@ -1,0 +1,14 @@
+the_plots_labels:
+  - Time
+  - err-fakes
+  - err-trust
+  - err-recomm
+the_plots_formats:
+  - [0,1,2,3]
+line_widths:
+  - [1,1,1,1,1,1]
+default_colors: &default_colors ["black","blue", "red","darkgreen"]
+the_plots_colors:
+  - *default_colors
+forceLimitPlotY: 120
+forceLimitPlotX: 1000

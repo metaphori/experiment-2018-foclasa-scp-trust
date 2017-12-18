@@ -1,7 +1,7 @@
 variables:
   random: &random
     min: 0
-    max: 2
+    max: 3
     step: 1
     default: 1
   commRadius: &commRadius
@@ -15,7 +15,7 @@ variables:
     min: 0
     max: 32
     step: 30
-    default: 100
+    default: 200
   minObservations: &minObservations
     formula: 4
   observationWindowSize: &observationWindowSize
@@ -46,6 +46,12 @@ variables:
     max: 3
     step: 0.5
     default: 2.5
+  sfunction: &sfunction
+    min: 0
+    max: 1
+    step: 1
+    default: 1
+    # Where maxError = [0] errorLB, [1] max(s,errorLB)
   distanceFromSource: &distanceFromSource
     min: 5
     max: 15
@@ -108,6 +114,9 @@ export:
     value-filter: ONLYFINITE
   - molecule: s_value_far_fake
     aggregators: [mean]
+    value-filter: ONLYFINITE
+  - molecule: merrdiff
+    aggregators: [sum]
     value-filter: ONLYFINITE
 
 seeds:
@@ -180,6 +189,8 @@ pools:
       concentration: *useTrust
     - molecule: performAnalysis
       concentration: *performAnalysis
+    - molecule: sfunction
+      concentration: *sfunction
 
 positions:
   type: Continuous2DEuclidean

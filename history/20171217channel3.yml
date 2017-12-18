@@ -1,0 +1,202 @@
+variables:
+  random: &random
+    min: 0
+    max: 4
+    step: 1
+    default: 0
+  commRadius: &commRadius
+    min: 1.2
+    max: 3.2
+    step: 0.25
+    default: 3.0
+  turnIntoFakeAt: &turnIntoFakeAt
+    formula: 80
+  startTrustAlgorithmAt: &startTrustAlgorithmAt
+    min: 0
+    max: 100
+    step: 30
+    default: 50
+  minObservations: &minObservations
+    formula: 6
+  observationWindowSize: &observationWindowSize
+    min: 4
+    max: 20
+    step: 5
+    default: 20
+  trustThreshold: &trustThreshold
+    min: 0.90
+    step: 0.03
+    max: 0.95
+    default: 0.90
+  maxErrorFactorExp: &maxErrorFactorExp
+    min: 0
+    max: 16
+    step: 1
+    default: 8
+  maxErrorFactor: &maxErrorFactor
+    formula: "Math.pow(2,$maxErrorFactorExp)" 
+  errorLBfactor: &errorLBfactor
+    min: 0.5
+    max: 2.5
+    step: 0.5
+    default: 1.1
+  errorLB: &errorLB
+    min: 8.5
+    step: 0.5
+    max: 9
+    default: 8.5
+    #formula: "$commRadius * $errorLBfactor"
+  distanceFromSource: &distanceFromSource
+    min: 5
+    max: 15
+    step: 4
+    default: 9
+  fakeGridStart: &fakeGridStart
+    formula: "15-$distanceFromSource"
+  fakeGridEnd: &fakeGridEnd
+    formula: "15+$distanceFromSource"
+  fakeGridSize: &fakeGridSize
+    formula: "$fakeGridEnd-$fakeGridStart"
+  turnIntoSourceAt: &turnIntoSourceAt
+    formula: 0
+  fakeAreaSize: &fakeAreaSize
+    formula: 0.0
+  useTrust: &useTrust
+    formula: 1
+  useRecomm: &useRecomm
+    formula: 1
+  channelWidth: &channelWidth
+    formula: 0.1
+          
+export:
+  - time
+  - molecule: channel-err-fake
+    aggregators: [sum]
+    value-filter: ONLYFINITE
+  - molecule: channel-err-trust
+    aggregators: [sum]
+    value-filter: ONLYFINITE
+  - molecule: channel-err-recomms
+    aggregators: [sum]
+    value-filter: ONLYFINITE
+
+seeds:
+  scenario: *random
+  simulation: *random
+
+network-model:
+  type: EuclideanDistance
+  parameters: [*commRadius]
+  
+#incarnation: protelis
+incarnation: scafi
+
+pools:
+  - pool: &program
+    - time-distribution: 1
+      type: Event
+      actions:
+        - type: RunScafiProgram #RunProtelisProgram
+          parameters: [Channel, 20]
+  - pool: &turnIntoFake
+    - time-distribution: 
+        type: Trigger
+        parameters: [*turnIntoFakeAt]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [fake, 1]
+  - pool: &turnIntoSource
+    - time-distribution: 
+        type: Trigger
+        parameters: [0]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [source, 1]  
+  - pool: &turnIntoTarget
+    - time-distribution: 
+        type: Trigger
+        parameters: [0]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [target, 1] 
+  - pool: &turnIntoObstacle
+    - time-distribution: 
+        type: Trigger
+        parameters: [0]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [obstacle, 1] 
+  - pool: &contents
+    - molecule: source
+      concentration: 0 # false
+    - molecule: target
+      concentration: 0 # false
+    - molecule: obstacle
+      concentration: 0 # false
+    - molecule: fake
+      concentration: 0 # false
+    - molecule: commRadius
+      concentration: *commRadius
+    - molecule: startTrustAlgorithmAt
+      concentration: *startTrustAlgorithmAt
+    - molecule: minObservations
+      concentration: *minObservations
+    - molecule: observationWindowSize
+      concentration: *observationWindowSize
+    - molecule: trustThreshold
+      concentration: *trustThreshold
+    - molecule: errorLB
+      concentration: *errorLB
+    - molecule: maxErrorFactor
+      concentration: *maxErrorFactor
+    - molecule: fakeAreaSize
+      concentration: *fakeAreaSize
+    - molecule: useRecomm
+      concentration: *useRecomm
+    - molecule: useTrust
+      concentration: *useTrust
+    - molecule: channelWidth
+      concentration: *channelWidth
+
+positions:
+  type: Continuous2DEuclidean
+  
+displacements:
+  - in:
+      type: Grid 
+      parameters: [0, 0, 30, 20, 1.6, 1.6, 0.2, 0.2]
+    programs: 
+      - *program
+    contents: *contents
+  - in:
+      type: Point
+      parameters: [3, 3]
+    programs: 
+      - *turnIntoSource
+      - *program
+    contents: *contents
+  - in:
+      type: Point
+      parameters: [27, 17]
+    programs: 
+      - *turnIntoTarget
+      - *program
+    contents: *contents
+  - in:
+      type: Point
+      parameters: [15,10]
+    programs: 
+      - *turnIntoObstacle
+      - *program
+    contents: *contents
+  - in:
+      type: Point
+      parameters: [16, 6]
+    programs: 
+      - *program
+      - *turnIntoFake
+    contents: *contents

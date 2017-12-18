@@ -1,7 +1,7 @@
 variables:
   random: &random
     min: 0
-    max: 5
+    max: 2
     step: 1
     default: 0
   commRadius: &commRadius
@@ -10,24 +10,24 @@ variables:
     step: 0.25
     default: 2.0
   turnIntoFakeAt: &turnIntoFakeAt
-    formula: 20
+    formula: 80
   startTrustAlgorithmAt: &startTrustAlgorithmAt
     min: 0
     max: 50
     step: 30
     default: 50
   minObservations: &minObservations
-    formula: 4
+    formula: 6
   observationWindowSize: &observationWindowSize
     min: 4
     max: 15
     step: 5
-    default: 12
+    default: 16
   trustThreshold: &trustThreshold
-    min: 0.75
-    step: 0.1
-    max: 0.85
-    default: 0.75
+    min: 0.40
+    step: 0.05
+    max: 0.95
+    default: 0.8
   maxErrorFactorExp: &maxErrorFactorExp
     min: 0
     max: 16
@@ -42,10 +42,16 @@ variables:
     default: 1.5
   errorLB: &errorLB
     #formula: "$commRadius * $errorLBfactor"
-    min: 2
-    max: 3
+    min: 3.2
+    max: 4.0
     step: 0.5
-    default: 2.5
+    default: 3.5
+  sfunction: &sfunction
+    min: 0
+    max: 1
+    step: 1
+    default: 1
+    # Where maxError = [0] errorLB, [1] max(s,errorLB)
   distanceFromSource: &distanceFromSource
     min: 5
     max: 15
@@ -64,9 +70,9 @@ variables:
   useTrust: &useTrust
     formula: 1
   useRecomm: &useRecomm
-    formula: 0
-  performAnalysis: &performAnalysis
     formula: 1
+  performAnalysis: &performAnalysis
+    formula: 0
           
 export:
   - time
@@ -164,6 +170,8 @@ pools:
       concentration: *useTrust
     - molecule: performAnalysis
       concentration: *performAnalysis
+    - molecule: sfunction
+      concentration: *sfunction
 
 positions:
   type: Continuous2DEuclidean

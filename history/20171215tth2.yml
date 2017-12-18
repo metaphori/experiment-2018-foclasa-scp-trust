@@ -1,0 +1,200 @@
+variables:
+  random: &random
+    min: 0
+    max: 2
+    step: 1
+    default: 0
+  commRadius: &commRadius
+    min: 1.2
+    max: 2.9
+    step: 0.25
+    default: 2.0
+  turnIntoFakeAt: &turnIntoFakeAt
+    formula: 50
+  startTrustAlgorithmAt: &startTrustAlgorithmAt
+    min: 0
+    max: 50
+    step: 30
+    default: 40
+  minObservations: &minObservations
+    formula: 4
+  observationWindowSize: &observationWindowSize
+    min: 4
+    max: 15
+    step: 5
+    default: 12
+  trustThreshold: &trustThreshold
+    min: 0.5
+    step: 0.05
+    max: 0.95
+    default: 0.8
+  maxErrorFactorExp: &maxErrorFactorExp
+    min: 0
+    max: 16
+    step: 1
+    default: 8
+  maxErrorFactor: &maxErrorFactor
+    formula: "Math.pow(2,$maxErrorFactorExp)" 
+  errorLBfactor: &errorLBfactor
+    min: 0.5
+    max: 2.5
+    step: 0.5
+    default: 1.5
+  errorLB: &errorLB
+    #formula: "$commRadius * $errorLBfactor"
+    min: 2
+    max: 5.1
+    step: 1.5
+    default: 3.0
+  sfunction: &sfunction
+    min: 0
+    max: 1
+    step: 1
+    default: 1
+    # Where maxError = [0] errorLB, [1] max(s,errorLB)
+  distanceFromSource: &distanceFromSource
+    min: 5
+    max: 15
+    step: 4
+    default: 9
+  fakeGridStart: &fakeGridStart
+    formula: "15-$distanceFromSource"
+  fakeGridEnd: &fakeGridEnd
+    formula: "15+$distanceFromSource"
+  fakeGridSize: &fakeGridSize
+    formula: "$fakeGridEnd-$fakeGridStart"
+  turnIntoSourceAt: &turnIntoSourceAt
+    formula: 0
+  fakeAreaSize: &fakeAreaSize
+    formula: 0.0
+  useTrust: &useTrust
+    formula: 1
+  useRecomm: &useRecomm
+    formula: 1
+  performAnalysis: &performAnalysis
+    formula: 0
+          
+export:
+  - time
+  - molecule: error-fakes
+    aggregators: [sum]
+    value-filter: ONLYFINITE
+  - molecule: error-trust
+    aggregators: [sum]
+    value-filter: ONLYFINITE
+  - molecule: error-trust-recomm
+    aggregators: [sum]
+    value-filter: ONLYFINITE
+  - molecule: merrdiff
+    aggregators: [mean]
+    value-filter: ONLYFINITE
+#  - molecule: n-error-fakes
+#    aggregators: [sum]
+#  - molecule: n-error-trust
+#    aggregators: [sum]
+#  - molecule: n-error-trust-recomm
+#    aggregators: [sum]
+#  - molecule: distrusted
+#    aggregators: [sum]
+#  - molecule: distrusted-recomm
+#    aggregators: [sum]
+
+seeds:
+  scenario: *random
+  simulation: *random
+
+network-model:
+  type: EuclideanDistance
+  parameters: [*commRadius]
+  
+#incarnation: protelis
+incarnation: scafi
+
+pools:
+  - pool: &program
+    - time-distribution: 1
+      type: Event
+      actions:
+        - type: RunScafiProgram #RunProtelisProgram
+          parameters: [gradient, 20]
+  - pool: &tellFake
+    - time-distribution: 
+        type: Trigger
+        parameters: [0]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [willBeFake, 1]
+  - pool: &turnIntoFake
+    - time-distribution: 
+        type: Trigger
+        parameters: [*turnIntoFakeAt]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [fake, 1]
+  - pool: &turnIntoSource
+    - time-distribution: 
+        type: Trigger
+        parameters: [*turnIntoSourceAt]
+      type: Event
+      actions:
+        - type: SetLocalMoleculeConcentration
+          parameters: [source, 1]  
+  - pool: &contents
+    - molecule: source
+      concentration: 0 # false
+    - molecule: fake
+      concentration: 0 # false
+    - molecule: willBeFake
+      concentration: 0 # false
+    - molecule: commRadius
+      concentration: *commRadius
+    - molecule: startTrustAlgorithmAt
+      concentration: *startTrustAlgorithmAt
+    - molecule: minObservations
+      concentration: *minObservations
+    - molecule: observationWindowSize
+      concentration: *observationWindowSize
+    - molecule: trustThreshold
+      concentration: *trustThreshold
+    - molecule: errorLB
+      concentration: *errorLB
+    - molecule: maxErrorFactor
+      concentration: *maxErrorFactor
+    - molecule: fakeAreaSize
+      concentration: *fakeAreaSize
+    - molecule: useRecomm
+      concentration: *useRecomm
+    - molecule: useTrust
+      concentration: *useTrust
+    - molecule: performAnalysis
+      concentration: *performAnalysis
+    - molecule: sfunction
+      concentration: *sfunction
+
+positions:
+  type: Continuous2DEuclidean
+  
+displacements:
+  - in:
+      type: Grid 
+      parameters: [0, 0, 30, 30, 1, 1, 0.2, 0.2]
+    programs: 
+      - *program
+    contents: *contents
+  - in:
+      type: Point
+      parameters: [15, 15]
+    programs: 
+      - *turnIntoSource
+      - *program
+    contents: *contents
+  - in:
+      type: Grid
+      parameters: [*fakeGridStart, *fakeGridStart, *fakeGridEnd, *fakeGridEnd, *fakeGridSize, *fakeGridSize, 0, 0]
+    programs: 
+      - *program
+      - *tellFake
+      - *turnIntoFake
+    contents: *contents

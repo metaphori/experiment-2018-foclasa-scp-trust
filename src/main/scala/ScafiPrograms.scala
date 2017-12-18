@@ -8,13 +8,14 @@ trait ScafiAlchemistSupport { self: AggregateProgram =>
   def env = sense[NodeManager]("manager")
 }
 
-class gradient extends AggregateProgram with ScafiAlchemistSupport {
+class gradient extends AggregateProgram with ScafiAlchemistSupport with MyLib {
   lazy val trustThreshold = env.get[Double]("trustThreshold")
   lazy val startTrustAlgorithmAt = env.get[Double]("startTrustAlgorithmAt")
   lazy val observationWindow = env.get[Double]("observationWindowSize").toInt
   lazy val minObservations = env.get[Int]("minObservations")
   lazy val commRadius = env.get[Double]("commRadius")
   lazy val errorLB = env.get[Double]("errorLB")
+  lazy val sfunction = env.get[Double]("sfunction").toInt
   lazy val maxErrorFactor = env.get[Double]("maxErrorFactor")
   lazy val fakeAreaSize = env.get[Double]("fakeAreaSize")
   
@@ -24,13 +25,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   
   def isSrc: Boolean = sense[Int]("source")==1
   def isFake: Boolean = sense[Int]("fake")==1
-  def isInFakeArea: Boolean = gradient(isFake)<=fakeAreaSize
+  //def isInFakeArea: Boolean = gradient(isFake)<=fakeAreaSize
   lazy val willBeFake: Boolean = sense[Int]("willBeFake")==1
-
-  def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
-  def currTime: Double = sense[Time]("time").toDouble()
-  def deltaTime: Double = sense[Double]("dt")
-  def nextRandom: Double = sense[()=>java.lang.Double]("random")().toDouble
 
   var fakeValue: Double = 0.0
   val keepFakeValueTime = 0
@@ -39,15 +35,16 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   // Keeps a pair (a,b) for each node that is used to calculate a trust score
   var map = Map[ID,(Double,Double)]()
   
+  import FieldUtils.withSelf._
+  
   override def main(): Double = {
-    val fake = isInFakeArea
-    env.put[Boolean]("isFake", isFake)
-    env.put[Boolean]("isInFakeArea", fake)
-    //val fakeSrc = if(isFake) scala.util.Random.nextBoolean else false
+    val fake = isFake
     
     branch(fake){ // Sets fake value to be produced in this round
       fakeValue = keepFor(keepFakeValueTime, nextFakeValue)
     }{ /* do nothing */ }
+    
+    env.put("merrdiff", 0)
 
     val dist = gradient(isSrc)
     env.put[Double]("gradient", dist)
@@ -108,8 +105,8 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
         env.put("fake_nbr", fakeNbr)
         env.put("fake_near", nearFake)
         env.put("s_value_nbr_fake", if(fakeNbr) s else Double.NaN)
-        env.put("s_value_near_fake", if(nearFake && !fakeNbr) s else Double.NaN)
-        env.put("s_value_near_near_fake", if(nearNearFake && !nearFake) s else Double.NaN)
+        env.put("s_value_near_fake", if(nearFake) s else Double.NaN)
+        env.put("s_value_near_near_fake", if(nearNearFake) s else Double.NaN)
         env.put("s_value_far_fake", if(!nearNearFake && !nearFake && !fakeNbr) s else Double.NaN)
       }{}
       
@@ -159,7 +156,6 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
           // the expression is run for the 'self' as well!
           val localTrustProfiles = foldhoodPlus(Map[ID,TrustProfile]())(_++_){
             val nbrId = nbr{mid()}
-            merrdiff = 0.0
             val trustParams = calculateTrustParams(dist, xmean, s)
             Map(nbrId -> TrustProfile(nbrId, trustParams, nbr{dist}+nbrRange))
           }
@@ -213,18 +209,19 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
       }
     } 
   }
-  
-  var merrdiff = 0.0
-  
+    
   /**
    * Returns a score based on a beta distribution.
    */
   def calculateTrustParams(field: => Double, xmean: Double, s: Double): TrustParams = {        
     val (nbrId, nbrVal) = nbr{ (mid(), field) }
     val deviation = Math.abs(nbrVal - xmean)
-    val maxError = Math.max(s, errorLB)
-    merrdiff = merrdiff + (if(maxError > errorLB) 1.0 else 0.0)
-    env.put("merrdiff", merrdiff)
+    val maxError = if(sfunction == 0){
+      errorLB
+    } else { 
+      Math.max(s, errorLB)
+    }
+    if(maxError > (errorLB+0.1)) env.put("merrdiff", 1.0)
     
     type MutableField[T] = MMap[ID,T]
     def MutableField[T](): MutableField[T] = MMap[ID,T]()
@@ -253,26 +250,16 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   def beta(a: Double, b: Double) = (a+1)/(a+b+2)
   
   def trustable(trustValue: Double): Boolean = trustValue >= trustThreshold
+}
+
+trait MyLib { self: AggregateProgram with ScafiAlchemistSupport =>
+  def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
+  def currTime: Double = sense[Time]("time").toDouble()
+  def deltaTime: Double = sense[Double]("dt")
+  def nextRandom: Double = sense[()=>java.lang.Double]("random")().toDouble  
   
-  def mapHood[T](m: MMap[ID,T], default: T)(f: (ID,T)=>T) = foldhoodPlus[MMap[ID,T]](m)(_++=_){ 
-    val nbrId = nbr{mid()}
-    MMap(nbrId -> f(nbrId, m.getOrElse(nbrId, default))) 
-  }
+  case class FoldingOptions(onlyFinite: Boolean = true)
   
-  case class FoldingOptions(includeSelf: Boolean = false, onlyFinite: Boolean = true)
-  def minHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(Double.PositiveInfinity)(Math.min)(field)
-  def maxHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(Double.NegativeInfinity)(Math.max)(field)
-  def sumHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
-  def anyHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Boolean](fops.includeSelf)(false)(_||_)(field)
-  def countHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Int](fops.includeSelf)(0)(_+_)(if(field) 1 else 0)
-  def fold[T](includeSelf: Boolean) = 
-    branch(includeSelf){ (foldhood[T] _) }{ (foldhoodPlus[T] _) }
-    
   def keepFor(time: Double, f: => Double): Double = rep[(Double,Double)]((currTime,f)){ case (lastTime,oldVal) =>
     mux(currTime-lastTime > time){ (currTime, f) } { (lastTime, oldVal) }
   }._2
@@ -314,5 +301,29 @@ class gradient extends AggregateProgram with ScafiAlchemistSupport {
   
   implicit class MyRichDouble(val d: Double) {
     def isFinite: Boolean = !d.isInfinite && !d.isNaN
+  }  
+  
+  trait FieldUtils {
+    val fops = FoldingOptions()
+    
+    def minHood(field: => Double) = 
+      (fold[Double])(Double.PositiveInfinity)(Math.min)(field)
+    def maxHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
+      (fold[Double])(Double.NegativeInfinity)(Math.max)(field)
+    def sumHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
+      (fold[Double])(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
+    def anyHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
+      (fold[Boolean])(false)(_||_)(field)
+    def countHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
+      (fold[Int])(0)(_+_)(if(field) 1 else 0)
+    def mapHood[T](field: => T): Map[ID,T] = 
+      (fold[Map[ID,T]])(Map[ID,T]())(_++_)(Map(nbr{mid} -> field))
+    
+    def fold[T]: (T) => ((T, T) => T) => ( => T ) => T 
+  }
+  
+  object FieldUtils {
+      val withSelf = new FieldUtils { override def fold[T]: (T) => ((T, T) => T) => ( => T ) => T = foldhood[T](_) }
+      val withoutSelf = new FieldUtils { override def fold[T]: (T) => ((T, T) => T) => ( => T ) => T = foldhoodPlus[T](_) }
   }  
 }

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 ################################################################################
 ########################### Script background info #############################
@@ -165,45 +165,28 @@ bucketize = False # tells if there is a 'time' dimension to be split into bucket
 do_aggr_plotting = True
 forceLimitPlotY = None
 forceLimitPlotX = None
-#sample_dim = 0
-#nbuckets = 100
-#t_start = 0
-#t_end = 200
-#ts = np.linspace(t_start, t_end, nbuckets)
-#t_step = (t_end-t_start)/buckets
-#ts = [x*t_step+t_step/2 for x in range(0,buckets)]
 fill_between = []
+default_colors = ["black","red","blue","green"]
+the_plots_labels = []
+the_plots_formats = []
+the_plots_colors = []
+line_widths = []
 
-# TRUSTED AC: trust algorithm with and w/o recommendations: error and num of nodes distrusted
-the_plots_labels = ["Time",
- "err-fakes", "err-trust", "err-recomm", "n-err-fakes", "n-err-trust", "n-err-recomm", "distrusted", "distrusted-recomm"]
-the_plots_formats = [[0,1,2,3]]# ,[0,4,5,6],[0,7,8]]
-default_colors = ["black","blue", "red","darkgreen"]
-the_plots_colors = [default_colors] * 4
 
 # Study of S values (mean square deviation)
-the_plots_labels = ["Time", "err-trust",
- "s_min_nbr_fake","s_max_nbr_fake","s_avg_nbr_fake",
- "s_min_near_fake","s_max_near_fake","s_avg_near_fake",
- "s_min_nnear_fake","s_max_nnear_fake","s_avg_nnear_fake",
- "s_min_far_fake","s_max_far_fake","s_avg_far_fake"  ]
-the_plots_formats = [[0,1,3,6,12]]
-#default_colors = ["black","blue","blue","red","red","darkgreen","darkgreen","gray","gray"]
-default_colors = ["black","black","blue","red","darkgreen","gray"]
-line_widths = [[1,6,1,1,1,1]] * 4
-the_plots_colors = [default_colors] * 1
-forceLimitPlotY = 22
+#the_plots_labels = ["Time", "err-trust",
+# "s_min_nbr_fake","s_max_nbr_fake","s_avg_nbr_fake",
+# "s_min_near_fake","s_max_near_fake","s_avg_near_fake",
+# "s_min_nnear_fake","s_max_nnear_fake","s_avg_nnear_fake",
+# "s_min_far_fake","s_max_far_fake","s_avg_far_fake", "merrdiff" ]
+#the_plots_formats = [#[0,4,7,13]] # avg
+#                    [0,3,6,12]] # max
+#default_colors = ["black","red","blue","green"]
+#line_widths = [[1,1,1,1,1,1]] * 4
+#the_plots_colors = [default_colors] * 2
+#forceLimitPlotY = 20
+#forceLimitPlotX = 200
 
-# CHANNEL
-#the_plots_labels = ["Time",
-# "err-fakes", "err-trust", "err-recomm"]
-#the_plots_formats = [[0,1,2,3]]
-#default_colors = ["black","red", "blue","darkgreen"]
-#the_plots_colors = [default_colors] * 4
-
-sampling = False
-limitPlotY = 2000 # float("inf")
-forceLimitPlotX = 250
 
 
 ###################################################################################
@@ -211,8 +194,13 @@ forceLimitPlotX = 250
 ###################################################################################
 
 script = sys.argv[0]
+if len(sys.argv)<3:
+  print("USAGE: plotter2 <basedir> <basefn> <plotConfigFile>")
+  exit(0)
+
 basedir = sys.argv[1]
 basefn = sys.argv[2]
+plotconfig = sys.argv[3]
 outdir = os.path.join(basedir, "imgs/")
 if not os.path.exists(outdir):
   os.makedirs(outdir)
@@ -222,6 +210,26 @@ files = get_data_files(basedir,basefn)
 print("Executing script: basedir=" + basedir + "\t basefilename=" + basefn)
 print("Files to be processed: " + str(files))
 print("Output directory for graphs: " + str(outdir))
+print("Loading plot configurartion: " + str(plotconfig))
+
+############################# Plot configuration
+
+import ruamel.yaml as yaml
+
+with open(plotconfig, 'r') as stream:
+    try:
+        pc = yaml.load(stream, Loader=yaml.Loader)
+        the_plots_labels = pc['the_plots_labels']
+        the_plots_formats = pc['the_plots_formats']
+        the_plots_colors = pc['the_plots_colors']
+        line_widths = pc['line_widths']
+        limitPlotY = pc.get('limitPlotY')
+        forceLimitPlotY = pc.get('forceLimitPlotY')
+        forceLimitPlotX = pc.get('forceLimitPlotX')
+        sampling = pc.get('sampling', False)
+    except yaml.YAMLError as exc:
+        print(exc)
+        exit(1)
 
 ############################# Script logic
 

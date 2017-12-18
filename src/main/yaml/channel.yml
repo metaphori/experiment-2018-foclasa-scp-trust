@@ -1,7 +1,7 @@
 variables:
   random: &random
     min: 0
-    max: 11
+    max: 19
     step: 1
     default: 0
   commRadius: &commRadius
@@ -10,24 +10,24 @@ variables:
     step: 0.25
     default: 3.0
   turnIntoFakeAt: &turnIntoFakeAt
-    formula: 50
+    formula: 80
   startTrustAlgorithmAt: &startTrustAlgorithmAt
     min: 0
-    max: 32
+    max: 100
     step: 30
-    default: 0
+    default: 50
   minObservations: &minObservations
     formula: 6
   observationWindowSize: &observationWindowSize
     min: 4
     max: 20
     step: 5
-    default: 10
+    default: 20
   trustThreshold: &trustThreshold
-    min: 0.5
-    step: 0.05
-    max: 0.85
-    default: 0.8
+    min: 0.90
+    step: 0.03
+    max: 0.95
+    default: 0.94
   maxErrorFactorExp: &maxErrorFactorExp
     min: 0
     max: 16
@@ -41,7 +41,11 @@ variables:
     step: 0.5
     default: 1.1
   errorLB: &errorLB
-    formula: "$commRadius * $errorLBfactor"
+    min: 8.5
+    step: 0.5
+    max: 9
+    default: 8.2
+    #formula: "$commRadius * $errorLBfactor"
   distanceFromSource: &distanceFromSource
     min: 5
     max: 15
@@ -183,8 +187,8 @@ displacements:
       - *program
     contents: *contents
   - in:
-      type: Grid 
-      parameters: [14, 9, 16, 11, 1, 1, 0.2, 0.2]
+      type: Point
+      parameters: [15,10]
     programs: 
       - *turnIntoObstacle
       - *program

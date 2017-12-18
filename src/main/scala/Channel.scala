@@ -5,7 +5,7 @@ import Builtins.Bounded
 import it.unibo.alchemist.model.interfaces.Time
 import scala.collection.mutable.{Map => MMap}
 
-class Channel extends AggregateProgram with ScafiAlchemistSupport {
+class Channel extends AggregateProgram with ScafiAlchemistSupport with MyLib {
   lazy val trustThreshold = env.get[Double]("trustThreshold")
   lazy val startTrustAlgorithmAt = env.get[Double]("startTrustAlgorithmAt")
   lazy val observationWindow = env.get[Double]("observationWindowSize").toInt
@@ -18,6 +18,8 @@ class Channel extends AggregateProgram with ScafiAlchemistSupport {
   lazy val useRecommendations: Boolean = sense[Int]("useRecomm")==1
   lazy val useTrust: Boolean = sense[Int]("useTrust")==1
   
+  import FieldUtils.withSelf._
+  
   lazy val channelWidth = env.get[Double]("channelWidth")
   def isSrc: Boolean = sense[Int]("source")==1
   def isTarget: Boolean = sense[Int]("target")==1
@@ -25,11 +27,6 @@ class Channel extends AggregateProgram with ScafiAlchemistSupport {
   def isObstacle: Boolean = anyHood(nbr { isObstacleSource })
   def isFake: Boolean = sense[Int]("fake")==1
   def isInFakeArea: Boolean = gradient(isFake)<=fakeAreaSize
-
-  def nbrRange = nbrvar[Double](NBR_RANGE_NAME)
-  def currTime: Double = sense[Time]("time").toDouble()
-  def deltaTime: Double = sense[Double]("dt")
-  def nextRandom: Double = sense[()=>java.lang.Double]("random")().toDouble
 
   var fakeValue: Double = 0.0
   val keepFakeValueTime = 0
@@ -54,13 +51,16 @@ class Channel extends AggregateProgram with ScafiAlchemistSupport {
     branch(!obstacle){
       val c = channel(isSrc, isTarget, channelWidth, gradient(_))
       val cFake = channel(isSrc, isTarget, channelWidth, gradient(_,fake))
+      env.put[Double]("channel-fake", if(cFake) 1 else 0)
       env.put[Double]("channel-err-fake", if(c ^ cFake) 1 else 0)
       branch(useTrust){
         val cTrust = channel(isSrc, isTarget, channelWidth, gradientWithTrust(_,fake)) 
+        env.put[Double]("channel-trust", if(cTrust) 1 else 0)
         env.put[Double]("channel-err-trust", if(c ^ cTrust) 1 else 0)
       }{}
       branch(useRecommendations){
         val cRecomms = channel(isSrc, isTarget, channelWidth, gradientWithTrustPlusRecommendations(_,fake)) 
+        env.put[Double]("channel-recomms", if(cRecomms) 1 else 0)
         env.put[Double]("channel-err-recomms", if(c ^ cRecomms) 1 else 0)
       }{}
       
@@ -71,11 +71,11 @@ class Channel extends AggregateProgram with ScafiAlchemistSupport {
   def channel(source: Boolean, target: Boolean, width: Double, g: Boolean => Double): Boolean =
     g(source) + g(target) <= distanceBetween(source, target, g) + width  
   
-  def broadcast[V: Bounded](source: Boolean, field: V, g: Boolean => Double): V =
+  def broadcast[V: Bounded](source: Boolean, field: V): V =
     G[V](source, field, v => v, nbrRange)
 
   def distanceBetween(source: Boolean, target: Boolean, g: Boolean => Double): Double =
-    broadcast(source, g(target), g)    
+    broadcast(source, g(target))    
     
   def gradient(source: Boolean, fake: Boolean = false): Double =
     rep(Double.PositiveInfinity){
@@ -258,66 +258,4 @@ class Channel extends AggregateProgram with ScafiAlchemistSupport {
   def beta(a: Double, b: Double) = (a+1)/(a+b+2)
   
   def trustable(trustValue: Double): Boolean = trustValue >= trustThreshold
-  
-  def mapHood[T](m: MMap[ID,T], default: T)(f: (ID,T)=>T) = foldhoodPlus[MMap[ID,T]](m)(_++=_){ 
-    val nbrId = nbr{mid()}
-    MMap(nbrId -> f(nbrId, m.getOrElse(nbrId, default))) 
-  }
-  
-  case class FoldingOptions(includeSelf: Boolean = false, onlyFinite: Boolean = true)
-  def minHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(Double.PositiveInfinity)(Math.min)(field)
-  def maxHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(Double.NegativeInfinity)(Math.max)(field)
-  def sumHood(field: => Double)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Double](fops.includeSelf)(0)(_+_)(field.orIf(fops.onlyFinite && !_.isFinite)(0.0))
-  def anyHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Boolean](fops.includeSelf)(false)(_||_)(field)
-  def countHood(field: => Boolean)(implicit fops: FoldingOptions = FoldingOptions()) = 
-    fold[Int](fops.includeSelf)(0)(_+_)(if(field) 1 else 0)
-  def fold[T](includeSelf: Boolean) = 
-    branch(includeSelf){ (foldhood[T] _) }{ (foldhoodPlus[T] _) }
-    
-  def keepFor(time: Double, f: => Double): Double = rep[(Double,Double)]((currTime,f)){ case (lastTime,oldVal) =>
-    mux(currTime-lastTime > time){ (currTime, f) } { (lastTime, oldVal) }
-  }._2
-  
-  def meanCounter(value: Double, frequency: Long): Double = {
-	  val time = currTime
-	  val dt = deltaTime
-	  val count = rep ((0.0,0.0)) { case x => { // (accumulated value, last time)
-	    // Splits into windows of multiples of 'frequency'
-	    // and restarts at the beginning of each new window.
-	    // E.g., for frequency=5
-	    // Time:           0_____5_____10_____15_____20 ...
-	    // Restart:              ^      ^      ^      ^ ...
-	    // Floor(Time/freq):  0     1      2      3     ... 
-		  val restart = rep((false, time)) { t =>
-			  (Math.floor(time/frequency) > Math.floor(t._2/frequency), time)
-		  }._1
-		  // Reset value and time on restart
-		  val old = if (restart) (0.0,0.0)  else x
-		  // Filters infinite values out
-		  if (Double.NegativeInfinity < value && value < Double.PositiveInfinity) {
-		    // Sums value weighed by time
-		    (old._1+value*dt, old._2+dt)
-		  } else old
-	  } }
-	  // E.g., consider these values and deltas: (5.0,2), (6,1), (Inf,2), (7,1), (5,1)
-		// You'll finally have (5.0*2 + 6*1 + 7*1 + 5*1) / (2+1+1+1) = 28/5 = 5.6
-	  count._1 / count._2
-  }
-  
-  implicit class RichValue[T](val value: T){
-    def orIf(pred: T => Boolean)(newValue: T): T = orIfCompute(pred)(_ => newValue)
-    def orIfCompute(pred: T => Boolean)(compute: T => T): T = if(pred(value)) compute(value) else value
-  }  
-  
-  implicit class RichPred[T](val p: T => Boolean) {
-     def not: T => Boolean = v => !p(v)
-  }
-  
-  implicit class MyRichDouble(val d: Double) {
-    def isFinite: Boolean = !d.isInfinite && !d.isNaN
-  }  
 }
