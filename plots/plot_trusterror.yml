@@ -11,11 +11,10 @@ the_plots_labels:
 the_plots_formats:
   - [0,1,2,3]
   # ,[0,4,5,6],[0,7,8]]
-file_suffixes:
-  - errors
 line_widths:
   - [1,1,1,1,1,1]
 default_colors: &default_colors ["black","blue", "red","darkgreen"]
 the_plots_colors:
   - *default_colors
 do_wrap: 30
+limit_plot_y: 2000

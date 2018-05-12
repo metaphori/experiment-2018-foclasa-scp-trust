@@ -144,15 +144,15 @@ def plot(config,content):
     for k in range(1,len(pformat)): # skip x-axis which is at pos 0
       plt.plot(content[pformat[0]], content[pformat[k]], color=the_plots_colors[nf][k], label=the_plots_labels[pformat[k]], linewidth=line_widths[nf][k])
       maxy = max(maxy, np.nanmax(content[pformat[k]]))
-    maxy = min(maxy, limitPlotY.get(nf,float("inf")))
+    maxy = min(maxy, limitPlotY[nf])
     if forceLimitPlotY.has_key(nf): maxy = forceLimitPlotY[nf]
     axes = plt.gca()
-    axes.set_ylim(ymax = maxy)  
+    axes.set_ylim(ymax = maxy, ymin = startPlotY[nf])  
     if forceLimitPlotX.has_key(nf): axes.set_xlim(xmax = forceLimitPlotX[nf])  
     plt.legend(loc= legendPosition[nf] if legendPosition.has_key(nf) else 'upper right')
     t = plt.title(title) 
     plt.subplots_adjust(top=.84) 
-    suffix = suffixes[nf] if suffixes.has_key(nf) else parts_suffix+ "_" + "".join(map(str,pformat))
+    suffix = parts_suffix+ "_" + (suffixes[nf] if suffixes.has_key(nf) else "".join(map(str,pformat)))
     savefn = outdir+basefn+"_"+ suffix +".png"
     print("SAVE: " + savefn)
     plt.tight_layout()
@@ -214,8 +214,9 @@ def parse_sim_option(pc, option, default=None):
         opt = defaultdict(lambda: defval, dict(enumerate(opt)))
     elif not opt: 
         opt = defaultdict(lambda: default)
-    else: 
-        opt = defaultdict(lambda: opt)
+    else: # single value
+        defval = opt
+        opt = defaultdict(lambda: defval)
     print(option + " >> " + str(opt))
     return opt
 
@@ -227,7 +228,8 @@ with open(plotconfig, 'r') as stream:
         the_plots_colors = parse_sim_option(pc, 'the_plots_colors')
         suffixes = parse_sim_option(pc, 'file_suffixes')
         line_widths = parse_sim_option(pc, 'line_widths')
-        limitPlotY = parse_sim_option(pc, 'limit_plot_y')
+        limitPlotY = parse_sim_option(pc, 'limit_plot_y', float('inf'))
+        startPlotY = parse_sim_option(pc, 'start_plot_y', 0)
         forceLimitPlotY = parse_sim_option(pc, 'force_limit_plot_y')
         forceLimitPlotX = parse_sim_option(pc, 'force_limit_plot_x')
         legendPosition = parse_sim_option(pc, 'legend_position')
