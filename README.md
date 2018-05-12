@@ -5,9 +5,9 @@ This is the project repository for the experiments of
 * Casadei, Roberto, Alessandro Aldini, and Mirko Viroli. "Combining trust and aggregate computing." 15th Int. Workshop on Foundations of Coordination Languages and Self-Adaptative Systems (FOCLASA’17), Trento, 2017;
 * and the extended paper "Towards Attack-Resistant Aggregate Computing Using Trust Mechanisms" submitted to the Elsevier journal Science of Computer Programming (SCP), Special Issue "Foclasa 2017". 
 
-### Experiments: how-to
+## Experiments: how-to
 
-#### Simulation framework
+### Simulation framework
 
 Clone the repository and prepare the working directory:
 
@@ -53,16 +53,24 @@ So, for the example above, data can be generated as follows:
 where the last argument is the plot configuration file and is used to drive the plotting script.
 Plots will be generated under `data/imgs/` with proper suffixes.
 
-#### Simulations and code
+### Simulations and code
 
-There are 4 relevant simulation configurations:
+There are 4 relevant simulation configurations (`src/main/yaml`):
 
 * `svalues.yml`
 * `gradient.yml`
 * `mobility.yml`
 * `channel.yml` (cf., Section 7 "Case Study: Attack-Resistant Channel")
 
-#### Simulations in the paper
+There are 2 relevant source code files (`src/main/scala`):
+
+* `GradientProgram.scala`
+* `ChannelProgram.scala`
+
+Please notice that the paper shows a clean version of them (without simulation-related stuff).
+Moreover, the paper shows a refactored versions of the sources kept in remote branch `trust-algo-refactoring`.
+
+### Simulations in the paper
 
 Note: the following instructions might produce simulations which are slightly different from the exact versions used in the paper.
 E.g., in the following subsection, the qualitative simulation which shows that the gradient field correctly recovers from attacks uses 1 attacker instead of 4.
@@ -88,11 +96,44 @@ $ ./plotter2.py data fig6 plots/plot_svalues.yml
 
 #### Calibration of errorLB (cf., Figure 7)
 
+* `distanceFromSource=9`
+* `trustThreshold=0.75`
 
+```
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var random errorLB \
+       -y src/main/yaml/gradient.yml -e data/fig7 -t 200 -p 3 -v &> exec.txt &
+$ ./plotter2.py data fig7 plots/plot_fig7.yml
+```
 
 #### Error and `trustThreshold` (cf., Figure 8)
 
+* `startTrustAlgorithmAt=40`
+* `errorLB=3.50`
+* `distanceFromSource=9`
+* `turnIntoFakeAt=50`
+* `random=0 | 1`
+* `trustThreshold = 0.50 | 0.55 | 0.60 | 0.65 | 0.70 | 0.75 | 0.80 | 0.85 | 0.90| 0.95`
+
+```
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var random trustThreshold errorLB \
+       -y src/main/yaml/gradient.yml -e data/fig8 -t 250 -p 3 -v &> exec.txt &
+
+$ ./plotter2.py data fig8 plots/plot_trusterror.yml
+```
+
 #### Error and `observationWinwowSize` (cf., Figure 9)
+
+* `observationWindowSize = 3 | 8 | 13`
+
+```
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var random distanceFromSource startTrustAlgorithmAt observationWindowSize \
+       -y src/main/yaml/gradient.yml -e data/fig9 -t 250 -p 3 -v &> exec.txt &
+
+$ ./plotter2.py data fig9 plots/plot_trusterror.yml
+```
 
 #### Number of distrusted nodes (cf., Figure 10)
 
