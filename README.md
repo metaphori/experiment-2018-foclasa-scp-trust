@@ -96,8 +96,8 @@ $ ./plotter2.py data fig6 plots/plot_svalues.yml
 
 #### Calibration of errorLB (cf., Figure 7)
 
-* `distanceFromSource=9`
-* `trustThreshold=0.75`
+* `distanceFromSource = 9`
+* `trustThreshold = 0.75`
 
 ```
 $ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
@@ -108,11 +108,11 @@ $ ./plotter2.py data fig7 plots/plot_fig7.yml
 
 #### Error and `trustThreshold` (cf., Figure 8)
 
-* `startTrustAlgorithmAt=40`
-* `errorLB=3.50`
-* `distanceFromSource=9`
-* `turnIntoFakeAt=50`
-* `random=0 | 1`
+* `startTrustAlgorithmAt = 40`
+* `errorLB = 3.50`
+* `distanceFromSource = 9`
+* `turnIntoFakeAt = 50`
+* `random = 0 | 1`
 * `trustThreshold = 0.50 | 0.55 | 0.60 | 0.65 | 0.70 | 0.75 | 0.80 | 0.85 | 0.90| 0.95`
 
 ```
@@ -123,7 +123,7 @@ $ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.uni
 $ ./plotter2.py data fig8 plots/plot_trusterror.yml
 ```
 
-#### Error and `observationWinwowSize` (cf., Figure 9)
+#### Error and `observationWindowSize` (cf., Figure 9)
 
 * `observationWindowSize = 3 | 8 | 13`
 
@@ -137,15 +137,71 @@ $ ./plotter2.py data fig9 plots/plot_trusterror.yml
 
 #### Number of distrusted nodes (cf., Figure 10)
 
+* `startTrustAlgorithmAt = 30`
+* `turnIntoFakeAt = 20`
+* `errorLB = 3.00`
+* `trustThreshold = 0.75`
+* `distanceFromSource= 5 | 9 | 13`
+```
+
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var distanceFromSource \
+       -y src/main/yaml/gradient.yml -e data/fig10 -t 250 -p 3 -v &> exec.txt &
+
+$ ./plotter2.py data fig10 plots/plot_trusterror.yml
+```
+
 #### Error and `commRadius` (cf., Figure 11)
+
+* `startTrustAlgorithmAt = 0`
+* `turnIntoFakeAt = 20`
+* `errorLB = 4.00`
+* `trustThreshold = 0.75`
+* `distanceFromSource = 9`
+* `commRadius = 1.20 | 1.95 | 2.70`
+```
+
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var distanceFromSource \
+       -y src/main/yaml/gradient.yml -e data/fig11 -t 250 -p 3 -v &> exec.txt &
+
+$ ./plotter2.py data fig11 plots/plot_trusterror.yml
+```
 
 #### Error and mobile attackers (cf., Figure 12)
 
-#### Channel error (cf., Figure 14)
+* `startTrustAlgorithmAt = 0`
+* `turnIntoFakeAt = 20`
+* `errorLB = 5.00`
+* `trustThreshold = 0.80`
+* `fakeSpeed = 0.0 | 0.5 | 0.15 | 0.25 | 0.45 | 0.65`
+
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var fakeSpeed \
+       -y src/main/yaml/mobility.yml -e data/fig12 -t 250 -p 3 -v &> exec.txt &
+
+$ ./plotter2.py data fig12 plots/plot_trusterror.yml
+```
 
 #### Qualitative: attack-resistant channel (cf., Figure 13)
 
 ```
 $ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
        -y src/main/yaml/channel.yml -g src/main/resources/channel_effects.aes -v &> exec.txt &
-``` 
+```
+
+#### Channel error (cf., Figure 14)
+
+* `startTrustAlgorithmAt = 50`
+* `turnIntoFakeAt = 80`
+* `errorLB = 8.00`
+* `trustThreshold = 0.90`
+* `random = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8`
+
+$ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
+       -b -var fakeSpeed \
+       -y src/main/yaml/channel.yml -e data/fig14 -t 250 -p 3 -v &> exec.txt &
+
+$ ./plotter2.py data fig14 plots/plot_channel.yml
+```
+
