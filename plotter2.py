@@ -21,6 +21,8 @@ import pylab as pl                   # frange
 import math                          # isnan, isinf, ceil
 import pprint
 from collections import defaultdict
+import ruamel.yaml as yaml
+from textwrap import wrap
 #import copy  # copy.deepcopy(myDict)
 
 #################################################################################
@@ -131,7 +133,9 @@ def merge_samples(contents, configs):
   return res
   
 def plot(config,content):
-  title = "\n".join(map("=".join,config))
+  title = map("=".join,config)
+  if doWrap is not None: title = wrap("    ".join(title), 30)
+  title = "\n".join([s.strip() for s in title])
   parts_suffix = "_".join(map("-".join,config))
   for nf, pformat in enumerate(the_plots_formats):
     plt.figure() # (figsize=(10,10), dpi=80)
@@ -152,7 +156,7 @@ def plot(config,content):
     savefn = outdir+basefn+"_"+ suffix +".png"
     print("SAVE: " + savefn)
     plt.tight_layout()
-    plt.savefig(savefn)  
+    plt.savefig(savefn, bbox_inches='tight', pad_inches = 0)  
     plt.close() 
 
 pp = pprint.PrettyPrinter(indent=4) # for logging purposes
@@ -166,6 +170,7 @@ bucketize = False # tells if there is a 'time' dimension to be split into bucket
 do_aggr_plotting = True
 forceLimitPlotY = None
 forceLimitPlotX = None
+doWrap = None
 limitPlotY = {}
 fill_between = []
 default_colors = ["black","red","blue","green"]
@@ -199,9 +204,6 @@ print("Loading plot configurartion: " + str(plotconfig))
 
 ############################# Plot configuration
 
-import ruamel.yaml as yaml
-from collections import defaultdict
-
 def parse_sim_option(pc, option, default=None):
     opt = pc.get(option)
     if type(opt) is dict:
@@ -230,6 +232,7 @@ with open(plotconfig, 'r') as stream:
         forceLimitPlotX = parse_sim_option(pc, 'force_limit_plot_x')
         legendPosition = parse_sim_option(pc, 'legend_position')
         sampling = pc.get('sampling', False)
+        doWrap = pc.get('sampling')
         plt.rcParams.update({'font.size': pc.get('font_size', 14)})
     except yaml.YAMLError as exc:
         print(exc)
