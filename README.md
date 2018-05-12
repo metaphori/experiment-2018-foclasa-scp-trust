@@ -159,8 +159,8 @@ $ ./plotter2.py data fig10 plots/plot_trusterror.yml
 * `trustThreshold = 0.75`
 * `distanceFromSource = 9`
 * `commRadius = 1.20 | 1.95 | 2.70`
-```
 
+```
 $ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
        -b -var distanceFromSource \
        -y src/main/yaml/gradient.yml -e data/fig11 -t 250 -p 3 -v &> exec.txt &
