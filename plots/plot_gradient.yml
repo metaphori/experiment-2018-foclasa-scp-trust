@@ -6,6 +6,8 @@ the_plots_labels:
   - mean-error
 the_plots_formats:
   - [0,1,2,3]
+suffixes:
+  - errors
 line_widths:
   - [1,1,1,1,1]
 default_colors: &default_colors ["black","blue", "red","darkgreen"]

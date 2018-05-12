@@ -1,0 +1,34 @@
+the_plots_labels:
+  - Time
+  - err-trust
+  - s_min_nbr_fake
+  - s_max_nbr_fake
+  - s_avg_nbr_fake
+  - s_min_near_fake
+  - s_max_near_fake
+  - s_avg_near_fake
+  - s_min_nnear_fake
+  - s_max_nnear_fake
+  - s_avg_nnear_fake
+  - s_min_far_fake
+  - s_max_far_fake
+  - s_avg_far_fake
+  - merrdiff
+the_plots_formats:
+  - [0,4,7,13] # avg
+  - [0,3,6,12] # max
+file_suffixes:
+  - avg
+  - max
+line_widths:
+  - [1,1,1,1]
+the_plots_colors:
+  - ["black","red","blue","darkgreen"]
+force_limit_plot_y: 
+  - 6  # for avg; 
+  - 20 # for max
+force_limit_plot_x: 
+  - 200
+legend_position:
+  - upper left
+  - upper right
