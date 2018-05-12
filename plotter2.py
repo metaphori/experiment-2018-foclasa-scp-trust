@@ -142,7 +142,7 @@ def plot(config,content):
     plt.xlabel(the_plots_labels[pformat[0]])
     maxy = float("-inf")
     for k in range(1,len(pformat)): # skip x-axis which is at pos 0
-      plt.plot(content[pformat[0]], content[pformat[k]], color=the_plots_colors[nf][k], label=the_plots_labels[pformat[k]], linewidth=line_widths[nf][k])
+      plt.plot(content[pformat[0]], content[pformat[k]], color=the_plots_colors[nf][pformat[k]], label=the_plots_labels[pformat[k]], linewidth=line_widths[nf][k])
       maxy = max(maxy, np.nanmax(content[pformat[k]]))
     maxy = min(maxy, limitPlotY[nf])
     if forceLimitPlotY.has_key(nf): maxy = forceLimitPlotY[nf]

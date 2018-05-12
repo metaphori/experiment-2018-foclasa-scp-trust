@@ -10,12 +10,12 @@ variables:
     step: 0.25
     default: 2.0
   turnIntoFakeAt: &turnIntoFakeAt
-    formula: 80
+    formula: 20
   startTrustAlgorithmAt: &startTrustAlgorithmAt
     min: 0
     max: 50
     step: 30
-    default: 50
+    default: 30
   minObservations: &minObservations
     formula: 6
   observationWindowSize: &observationWindowSize
@@ -88,16 +88,16 @@ export:
   - molecule: merrdiff
     aggregators: [mean]
     value-filter: ONLYFINITE
-#  - molecule: n-error-fakes
-#    aggregators: [sum]
-#  - molecule: n-error-trust
-#    aggregators: [sum]
-#  - molecule: n-error-trust-recomm
-#    aggregators: [sum]
-#  - molecule: distrusted
-#    aggregators: [sum]
-#  - molecule: distrusted-recomm
-#    aggregators: [sum]
+  - molecule: n-error-fakes
+    aggregators: [sum]
+  - molecule: n-error-trust
+    aggregators: [sum]
+  - molecule: n-error-trust-recomm
+    aggregators: [sum]
+  - molecule: distrusted
+    aggregators: [sum]
+  - molecule: distrusted-recomm
+    aggregators: [sum]
 
 seeds:
   scenario: *random

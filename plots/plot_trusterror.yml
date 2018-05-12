@@ -3,18 +3,20 @@ the_plots_labels:
   - err-fakes
   - err-trust
   - err-recomm
+  - merrdiff
   - n-err-fakes
   - n-err-trust
   - n-err-recomm
   - distrusted
   - distrusted-recomm
 the_plots_formats:
-  - [0,1,2,3]
-  # ,[0,4,5,6],[0,7,8]]
+#  - [0,1,2,3]
+  - [0,8,9]
 line_widths:
-  - [1,1,1,1,1,1]
-default_colors: &default_colors ["black","blue", "red","darkgreen"]
+  - [1,1,1,1,1,1,1,1,1,1]
 the_plots_colors:
-  - *default_colors
+#  - ["black","blue", "red","darkgreen"]
+  - ["black","", "", "", "", "", "", "", "blue", "red"]
 do_wrap: 30
-limit_plot_y: 2000
+limit_plot_y: 60
+font_size: 12
