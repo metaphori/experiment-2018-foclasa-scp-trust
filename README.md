@@ -176,6 +176,7 @@ $ ./plotter2.py data fig11 plots/plot_trusterror.yml
 * `trustThreshold = 0.80`
 * `fakeSpeed = 0.0 | 0.5 | 0.15 | 0.25 | 0.45 | 0.65`
 
+```
 $ java -Xmx5024m -cp "build/classes/main:libs/alchemist-redist-7.0.2.jar" it.unibo.alchemist.Alchemist \
        -b -var fakeSpeed \
        -y src/main/yaml/mobility.yml -e data/fig12 -t 250 -p 3 -v &> exec.txt &
