@@ -18,3 +18,4 @@ line_widths:
 default_colors: &default_colors ["black","blue", "red","darkgreen"]
 the_plots_colors:
   - *default_colors
+do_wrap: 30

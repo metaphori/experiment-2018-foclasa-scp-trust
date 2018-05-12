@@ -232,7 +232,7 @@ with open(plotconfig, 'r') as stream:
         forceLimitPlotX = parse_sim_option(pc, 'force_limit_plot_x')
         legendPosition = parse_sim_option(pc, 'legend_position')
         sampling = pc.get('sampling', False)
-        doWrap = pc.get('sampling')
+        doWrap = pc.get('do_wrap')
         plt.rcParams.update({'font.size': pc.get('font_size', 14)})
     except yaml.YAMLError as exc:
         print(exc)
