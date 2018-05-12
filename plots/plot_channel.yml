@@ -5,7 +5,7 @@ the_plots_labels:
   - err-recomm
 the_plots_formats:
   - [0,1,2,3]
-suffixes:
+file_suffixes:
   - errors
 line_widths:
   - [1,1,1,1,1,1]

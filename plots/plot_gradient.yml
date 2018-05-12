@@ -6,7 +6,7 @@ the_plots_labels:
   - mean-error
 the_plots_formats:
   - [0,1,2,3]
-suffixes:
+file_suffixes:
   - errors
 line_widths:
   - [1,1,1,1,1]
