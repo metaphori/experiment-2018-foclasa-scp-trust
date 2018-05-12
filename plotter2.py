@@ -172,23 +172,6 @@ the_plots_formats = []
 the_plots_colors = []
 line_widths = []
 
-
-# Study of S values (mean square deviation)
-#the_plots_labels = ["Time", "err-trust",
-# "s_min_nbr_fake","s_max_nbr_fake","s_avg_nbr_fake",
-# "s_min_near_fake","s_max_near_fake","s_avg_near_fake",
-# "s_min_nnear_fake","s_max_nnear_fake","s_avg_nnear_fake",
-# "s_min_far_fake","s_max_far_fake","s_avg_far_fake", "merrdiff" ]
-#the_plots_formats = [#[0,4,7,13]] # avg
-#                    [0,3,6,12]] # max
-#default_colors = ["black","red","blue","green"]
-#line_widths = [[1,1,1,1,1,1]] * 4
-#the_plots_colors = [default_colors] * 2
-#forceLimitPlotY = 20
-#forceLimitPlotX = 200
-
-
-
 ###################################################################################
 ############################## Script preparation #################################
 ###################################################################################
