@@ -72,7 +72,7 @@ Moreover, the paper shows a refactored versions of the sources kept in remote br
 
 ### Simulations in the paper
 
-Note: the following instructions might produce simulations which are slightly different from the exact versions used in the paper.
+Note: due to potential complications in the simulation- or plotting-related procedures, the following instructions might produce simulations which are slightly different from the exact versions used in the paper.
 E.g., in the following subsection, the qualitative simulation which shows that the gradient field correctly recovers from attacks uses 1 attacker instead of 4.
 
 #### Qualitative: gradient field (cf., Figure 5)
